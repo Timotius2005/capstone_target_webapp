@@ -1,27 +1,62 @@
 package security
 
 import (
-	"os"
+	"sync"
 
 	"go.uber.org/zap"
 )
 
-// IsSecure returns true when APP_SECURITY_MODE=secure.
-func IsSecure() bool {
-	return os.Getenv("APP_SECURITY_MODE") == "secure"
-}
+// ModeValue is the canonical type for the runtime security mode.
+type ModeValue string
 
-// IsVulnerable returns true when APP_SECURITY_MODE=vulnerable (or unset).
-func IsVulnerable() bool {
-	return !IsSecure()
-}
+const (
+	ModeSecure  ModeValue = "secure"
+	ModeSandbox ModeValue = "sandbox"
+)
 
-// GetMode returns the current security mode string.
-func GetMode() string {
-	if IsSecure() {
-		return "secure"
+var (
+	mu          sync.RWMutex
+	currentMode ModeValue = ModeSecure // safe default; overridden by Init()
+)
+
+// Init sets the starting runtime mode from the value loaded in config at startup.
+// Call once before serving requests. Accepts "secure", "sandbox", or legacy "vulnerable".
+func Init(modeStr string) {
+	switch modeStr {
+	case "sandbox", "vulnerable":
+		SetMode(ModeSandbox)
+	default:
+		SetMode(ModeSecure)
 	}
-	return "vulnerable"
+}
+
+// SetMode atomically changes the active security mode at runtime without a restart.
+func SetMode(mode ModeValue) {
+	mu.Lock()
+	defer mu.Unlock()
+	currentMode = mode
+}
+
+// GetMode returns the current mode string ("secure" or "sandbox").
+func GetMode() string {
+	mu.RLock()
+	defer mu.RUnlock()
+	return string(currentMode)
+}
+
+// IsSecure returns true when the runtime mode is "secure".
+func IsSecure() bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return currentMode == ModeSecure
+}
+
+// IsVulnerable returns true when the runtime mode is "sandbox".
+// Preserved for compatibility with existing OWASP injection-point code.
+func IsVulnerable() bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return currentMode == ModeSandbox
 }
 
 // LogMode prints the active security mode at startup.
@@ -35,7 +70,7 @@ func LogMode(log *zap.Logger) {
 	} else {
 		log.Warn("Security mode active",
 			zap.String("mode", mode),
-			zap.String("note", "OWASP vulnerabilities INTENTIONALLY ENABLED — demo only"),
+			zap.String("note", "OWASP sandbox/demo mode ACTIVE — controlled simulation only"),
 		)
 	}
 }

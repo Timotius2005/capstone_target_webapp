@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 interface NavItem {
   label: string
   labelId: string
   href: string
   icon: string
-  vulnerableOnly?: boolean
+  sandboxOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -21,7 +21,7 @@ const NAV_ITEMS: NavItem[] = [
     labelId: 'Pengaturan Admin',
     href: '/admin',
     icon: '⚙️',
-    vulnerableOnly: true,
+    sandboxOnly: true,
   },
 ]
 
@@ -31,9 +31,10 @@ interface SidebarProps {
 
 export default function Sidebar({ open }: SidebarProps) {
   const pathname = usePathname()
-  const vulnerable = isVulnerable()
+  const { mode } = useMode()
+  const isSandbox = mode === 'sandbox'
 
-  const items = NAV_ITEMS.filter((item) => !item.vulnerableOnly || vulnerable)
+  const items = NAV_ITEMS.filter((item) => !item.sandboxOnly || isSandbox)
 
   return (
     <>
@@ -72,7 +73,7 @@ export default function Sidebar({ open }: SidebarProps) {
             {items.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
-              const isAdmin = item.vulnerableOnly
+              const isAdmin = item.sandboxOnly
 
               return (
                 <Link
@@ -82,15 +83,15 @@ export default function Sidebar({ open }: SidebarProps) {
                     isActive
                       ? 'nav-active'
                       : isAdmin
-                      ? 'text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-dashed border-red-500/30'
+                      ? 'text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-dashed border-amber-500/30'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
                   }`}
                 >
                   <span className="text-base w-5 text-center">{item.icon}</span>
                   <span className="flex-1">{item.labelId}</span>
                   {isAdmin && !isActive && (
-                    <span className="text-[9px] font-bold text-red-400/60 uppercase tracking-widest bg-red-500/10 px-1.5 py-0.5 rounded">
-                      vuln
+                    <span className="text-[9px] font-bold text-amber-400/60 uppercase tracking-widest bg-amber-500/10 px-1.5 py-0.5 rounded">
+                      sandbox
                     </span>
                   )}
                   {isActive && (

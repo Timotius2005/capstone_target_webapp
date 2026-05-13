@@ -26,11 +26,12 @@ func Run() error {
 	log := logger.New()
 	defer func() { _ = log.Sync() }()
 
-	// ── Security mode banner ──────────────────────────────────────────────────
-	security.LogMode(log)
-
 	// ── Config ────────────────────────────────────────────────────────────────
 	cfg := config.New()
+
+	// ── Runtime security mode — initialised from .env, changeable at runtime ──
+	security.Init(cfg.SecurityMode)
+	security.LogMode(log)
 
 	// ── Startup info (no password logged) ─────────────────────────────────────
 	log.Info("Starting PT. Dana Sejahtera backend",
@@ -73,6 +74,7 @@ func Run() error {
 	txH := handlers.NewTransactionHandler(txSvc, log)
 	adminH := handlers.NewAdminHandler(userRepo, log)
 	ssrfH := handlers.NewSSRFHandler(extSvc, log)
+	configH := handlers.NewConfigHandler(log)
 
 	// ── Gin engine ────────────────────────────────────────────────────────────
 	if security.IsVulnerable() {
@@ -91,6 +93,20 @@ func Run() error {
 	r.Use(middleware.CORS())
 	r.Use(middleware.SecureHeaders())
 	r.Use(middleware.RequestSizeLimit())
+
+	// ── Runtime config endpoints ──────────────────────────────────────────────
+	// GET is public — frontend reads on every page load without auth.
+	r.GET("/config/mode", configH.GetMode)
+
+	// PUT requires a valid JWT and admin role. RoleCheck is used here instead of
+	// AdminOnly because AdminOnly intentionally bypasses role enforcement in
+	// sandbox mode (OWASP API5 demo). Config/mode must ALWAYS require admin.
+	cfgRoutes := r.Group("/config")
+	cfgRoutes.Use(middleware.AuthRequired(authSvc))
+	cfgRoutes.Use(middleware.RoleCheck("admin"))
+	{
+		cfgRoutes.PUT("/mode", configH.SetMode)
+	}
 
 	// ── Health endpoints ──────────────────────────────────────────────────────
 	r.GET("/health", func(c *gin.Context) {

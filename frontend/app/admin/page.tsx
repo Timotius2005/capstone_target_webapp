@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
 import { api } from '@/services/api'
-import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 interface UserRecord {
   id: string
@@ -19,7 +19,8 @@ interface UserRecord {
 // In secure mode, it redirects immediately
 export default function AdminPage() {
   const router = useRouter()
-  const vulnerable = isVulnerable()
+  const { mode } = useMode()
+  const vulnerable = mode === 'sandbox'
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [rawConfig, setRawConfig] = useState<Record<string, unknown> | null>(null)

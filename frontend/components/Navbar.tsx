@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import ModeBadge from './ModeBadge'
 import { useTheme } from './ThemeProvider'
+import { useMode } from '@/contexts/ModeContext'
 import { authService, type User } from '@/services/auth'
-import { isVulnerable } from '@/utils/securityMode'
 
 interface NavbarProps {
   title: string
@@ -14,10 +14,15 @@ interface NavbarProps {
 
 export default function Navbar({ title, onMenuToggle }: NavbarProps) {
   const { theme, toggleTheme } = useTheme()
+  const { mode, switchMode } = useMode()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [user, setUser] = useState<Partial<User> | null>(null)
+  const [switching, setSwitching] = useState(false)
+  const [switchError, setSwitchError] = useState<string | null>(null)
   const router = useRouter()
-  const vulnerable = isVulnerable()
+
+  const isSandbox = mode === 'sandbox'
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     setUser(authService.getUser())
@@ -26,6 +31,20 @@ export default function Navbar({ title, onMenuToggle }: NavbarProps) {
   const handleLogout = () => {
     authService.logout()
     router.push('/login')
+  }
+
+  const handleModeToggle = async () => {
+    if (switching) return
+    setSwitching(true)
+    setSwitchError(null)
+    try {
+      await switchMode(isSandbox ? 'secure' : 'sandbox')
+    } catch (err) {
+      setSwitchError(err instanceof Error ? err.message : 'Failed to switch mode')
+      setTimeout(() => setSwitchError(null), 4000)
+    } finally {
+      setSwitching(false)
+    }
   }
 
   const initials = user?.username?.slice(0, 2).toUpperCase() || 'U'
@@ -61,6 +80,37 @@ export default function Navbar({ title, onMenuToggle }: NavbarProps) {
         {/* ── Right: badge + controls ─── */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <ModeBadge size="sm" className="hidden sm:inline-flex" />
+
+          {/* ── Admin mode toggle ────────────────────────── */}
+          {isAdmin && (
+            <div className="hidden sm:flex items-center gap-2">
+              {switchError && (
+                <span className="text-[10px] text-red-400 font-mono max-w-[120px] truncate">
+                  {switchError}
+                </span>
+              )}
+              <button
+                onClick={handleModeToggle}
+                disabled={switching}
+                title={`Switch to ${isSandbox ? 'secure' : 'sandbox'} mode`}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isSandbox
+                    ? 'bg-amber-500 focus:ring-amber-500'
+                    : 'bg-emerald-500 focus:ring-emerald-500'
+                }`}
+                aria-label="Toggle security mode"
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                    isSandbox ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                  } ${switching ? 'animate-pulse' : ''}`}
+                />
+              </button>
+              <span className={`text-[10px] font-semibold ${isSandbox ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {switching ? '…' : isSandbox ? 'Sandbox' : 'Secure'}
+              </span>
+            </div>
+          )}
 
           {/* Theme toggle */}
           <button
@@ -111,22 +161,44 @@ export default function Navbar({ title, onMenuToggle }: NavbarProps) {
                       {user?.username || 'User'}
                     </p>
                     {/* TODO: Vulnerability Injection Point */}
-                    {/* Vulnerable mode exposes internal user ID and email */}
-                    {vulnerable && user?.email && (
+                    {/* Sandbox mode exposes internal user ID and email */}
+                    {isSandbox && user?.email && (
                       <p className="text-xs text-red-400/80 mt-0.5 font-mono break-all">
                         {user.email}
                       </p>
                     )}
-                    {vulnerable && (user as User)?.id && (
+                    {isSandbox && (user as User)?.id && (
                       <p className="text-[10px] text-red-400/60 mt-0.5 font-mono truncate">
                         ID: {(user as User).id}
                       </p>
                     )}
-                    {!vulnerable && (
+                    {!isSandbox && (
                       <p className="text-xs text-slate-400 capitalize mt-0.5">{user?.role}</p>
                     )}
                   </div>
                   <ModeBadge size="sm" className="mx-3 my-2" />
+
+                  {/* Admin mode toggle in user menu (mobile fallback) */}
+                  {isAdmin && (
+                    <div className="sm:hidden px-4 py-2 border-t border-slate-200/20 dark:border-slate-700/30">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">
+                        Security Mode
+                      </p>
+                      <button
+                        onClick={() => { setUserMenuOpen(false); handleModeToggle() }}
+                        disabled={switching}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                          isSandbox
+                            ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                        }`}
+                      >
+                        <span>{isSandbox ? '⚠ Sandbox' : '🔒 Secure'}</span>
+                        <span className="text-slate-400">Switch →</span>
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"

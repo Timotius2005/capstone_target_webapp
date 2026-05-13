@@ -7,7 +7,8 @@ import (
 )
 
 // Config holds all application configuration.
-// DB fields are exposed separately so startup logs can show host/name without password.
+// All sensitive and infrastructure values must be supplied via environment
+// variables or a .env file. No defaults are provided for those fields.
 type Config struct {
 	Port string
 
@@ -30,16 +31,16 @@ type Config struct {
 
 func New() *Config {
 	cfg := &Config{
-		Port:         getEnv("PORT", "8080"),
-		DBHost:       getEnv("DB_HOST", "localhost"),
-		DBPort:       getEnv("DB_PORT", "5432"),
-		DBUser:       getEnv("DB_USER", "fintech"),
-		DBPassword:   getEnv("DB_PASSWORD", "securepass"),
-		DBName:       getEnv("DB_NAME", "nasabahdb"),
+		Port:         getEnv("PORT", ""),
+		DBHost:       getEnv("DB_HOST", ""),
+		DBPort:       getEnv("DB_PORT", ""),
+		DBUser:       getEnv("DB_USER", ""),
+		DBPassword:   getEnv("DB_PASSWORD", ""),
+		DBName:       getEnv("DB_NAME", ""),
 		DBSSLMode:    getEnv("DB_SSLMODE", "disable"),
-		JWTSecret:    getEnv("JWT_SECRET", "change-me-in-production-use-32-chars"),
+		JWTSecret:    getEnv("JWT_SECRET", ""),
 		SecurityMode: getEnv("APP_SECURITY_MODE", "secure"),
-		Environment:  getEnv("ENVIRONMENT", "development"),
+		Environment:  getEnv("ENVIRONMENT", "production"),
 	}
 
 	// DATABASE_URL overrides individual fields if explicitly set.
