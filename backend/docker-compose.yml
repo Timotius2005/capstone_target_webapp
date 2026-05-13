@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: danasejahtera_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fintech
+      POSTGRES_PASSWORD: securepass
+      POSTGRES_DB: nasabahdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/000001_initial_schema.up.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fintech -d nasabahdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend_secure:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: danasejahtera_secure
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_SECURITY_MODE: secure
+      PORT: "8080"
+      DATABASE_URL: "host=postgres user=fintech password=securepass dbname=nasabahdb port=5432 sslmode=disable"
+      JWT_SECRET: "secure-jwt-secret-min-32-chars-long!"
+      ENVIRONMENT: production
+    ports:
+      - "8080:8080"
+
+  backend_vulnerable:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: danasejahtera_vulnerable
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_SECURITY_MODE: vulnerable
+      PORT: "8081"
+      DATABASE_URL: "host=postgres user=fintech password=securepass dbname=nasabahdb port=5432 sslmode=disable"
+      JWT_SECRET: "weak"
+      ENVIRONMENT: development
+    ports:
+      - "8081:8081"
+
+volumes:
+  pgdata:

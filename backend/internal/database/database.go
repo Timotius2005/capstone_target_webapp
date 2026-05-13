@@ -1,25 +1,48 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
+	"pt-dana-sejahtera/internal/models"
+	"pt-dana-sejahtera/internal/security"
 )
 
-func New(databaseURL string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", databaseURL)
+// New opens a GORM/PostgreSQL connection.
+func New(dsn string) (*gorm.DB, error) {
+	logLevel := logger.Silent
+	if security.IsVulnerable() {
+		// TODO: Vulnerability Injection Point — OWASP API8 (Security Misconfiguration)
+		// Debug mode logs raw SQL queries including sensitive data
+		logLevel = logger.Info
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logLevel),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
 	}
-
-	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(10)
 
 	return db, nil
+}
+
+// AutoMigrate runs GORM AutoMigrate for all domain models.
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&models.User{},
+		&models.Nasabah{},
+		&models.Loan{},
+		&models.Transaction{},
+	)
 }
