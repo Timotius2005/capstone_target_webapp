@@ -1,55 +1,51 @@
 -- +goose Up
--- Create database
-CREATE DATABASE IF NOT EXISTS pt_dana_sejahtera;
-
--- Use the database
-\c pt_dana_sejahtera;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(50) DEFAULT 'user',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create nasabah table
 CREATE TABLE IF NOT EXISTS nasabah (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     nik VARCHAR(16) UNIQUE NOT NULL,
     phone VARCHAR(20),
     address TEXT,
     date_of_birth DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create loans table
 CREATE TABLE IF NOT EXISTS loans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nasabah_id UUID REFERENCES nasabah(id) ON DELETE CASCADE,
+    nasabah_id UUID NOT NULL REFERENCES nasabah(id) ON DELETE CASCADE,
     amount DECIMAL(15,2) NOT NULL,
     interest_rate DECIMAL(5,2) NOT NULL,
     term_months INTEGER NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'paid')),
     approved_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create transactions table
 CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_id UUID REFERENCES loans(id) ON DELETE CASCADE,
+    loan_id UUID NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
     amount DECIMAL(15,2) NOT NULL,
     transaction_type VARCHAR(50) NOT NULL,
     description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
@@ -74,5 +70,3 @@ DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS loans;
 DROP TABLE IF EXISTS nasabah;
 DROP TABLE IF EXISTS users;
-
-DROP DATABASE IF EXISTS pt_dana_sejahtera;

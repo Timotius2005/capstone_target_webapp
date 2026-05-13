@@ -34,14 +34,11 @@ func (uc *AuthUseCase) Login(req LoginRequest) (*LoginResponse, error) {
 		return nil, errors.New("invalid credentials")
 	}
 
-	// TODO: SECURITY VULNERABILITY - No Password Hashing Comparison
-	// This should use bcrypt.CompareHashAndPassword
-	if req.Password != user.Password {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		return nil, errors.New("invalid credentials")
 	}
 
-	// TODO: SECURITY VULNERABILITY - JWT Token Generation
-	// Should generate proper JWT token with claims
+	// NOTE: Token generation remains a placeholder for integration with a real JWT provider
 	token := "fake-jwt-token-" + user.ID.String()
 
 	return &LoginResponse{

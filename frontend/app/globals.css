@@ -2,26 +2,151 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── CSS Custom Properties ─────────────────────────────────────────────── */
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --bg-primary: #f0f4ff;
+  --bg-secondary: #ffffff;
+  --sidebar-bg: #ffffff;
+  --card-bg: rgba(255, 255, 255, 0.75);
+  --card-border: rgba(99, 102, 241, 0.12);
+  --text-primary: #1e293b;
+  --text-muted: #64748b;
+  --gradient-a: #4f46e5;
+  --gradient-b: #3b82f6;
+  --gradient-c: #8b5cf6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+.dark {
+  --bg-primary: #080d1a;
+  --bg-secondary: #0f172a;
+  --sidebar-bg: #0a1020;
+  --card-bg: rgba(255, 255, 255, 0.035);
+  --card-border: rgba(99, 102, 241, 0.18);
+  --text-primary: #f1f5f9;
+  --text-muted: #94a3b8;
+  --gradient-a: #6366f1;
+  --gradient-b: #60a5fa;
+  --gradient-c: #a78bfa;
+}
+
+/* ─── Reset & Base ───────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease;
+}
+
+/* ─── Glassmorphism Utility ──────────────────────────────────────────────── */
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--card-border);
+}
+
+/* ─── Gradient Utilities ─────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--gradient-a), var(--gradient-b));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.animated-gradient {
+  background: linear-gradient(135deg, var(--gradient-a) 0%, var(--gradient-b) 50%, var(--gradient-c) 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ─── Hover Effects ──────────────────────────────────────────────────────── */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* ─── Security Mode Pulse Animations ────────────────────────────────────── */
+@keyframes securePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  50%       { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+}
+@keyframes vulnerablePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50%       { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+}
+
+.secure-pulse      { animation: securePulse 2.5s ease-in-out infinite; }
+.vulnerable-pulse  { animation: vulnerablePulse 1.8s ease-in-out infinite; }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar           { width: 5px; height: 5px; }
+::-webkit-scrollbar-track     { background: transparent; }
+::-webkit-scrollbar-thumb     { background: rgba(99, 102, 241, 0.35); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.6); }
+
+/* ─── Table ──────────────────────────────────────────────────────────────── */
+.data-table th {
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ─── Status Badge ───────────────────────────────────────────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+}
+
+/* ─── Input Focus Ring ───────────────────────────────────────────────────── */
+.input-field {
+  @apply w-full px-4 py-3 rounded-xl border bg-white dark:bg-slate-800/50
+         text-slate-800 dark:text-white placeholder-slate-400
+         border-slate-200 dark:border-slate-700/60
+         focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500
+         transition-all duration-200;
+}
+
+/* ─── Sidebar Active Link ────────────────────────────────────────────────── */
+.nav-active {
+  background: linear-gradient(135deg, #4f46e5, #3b82f6);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35);
+}
+
+/* ─── Page Fade-in ───────────────────────────────────────────────────────── */
+.page-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

@@ -11,5 +11,3 @@ DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS loans;
 DROP TABLE IF EXISTS nasabah;
 DROP TABLE IF EXISTS users;
-
-DROP DATABASE IF EXISTS pt_dana_sejahtera;
