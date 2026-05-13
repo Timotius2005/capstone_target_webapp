@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -31,16 +32,26 @@ func Run() error {
 	// ── Config ────────────────────────────────────────────────────────────────
 	cfg := config.New()
 
-	// ── Database ──────────────────────────────────────────────────────────────
-	db, err := database.New(cfg.DatabaseURL)
+	// ── Startup info (no password logged) ─────────────────────────────────────
+	log.Info("Starting PT. Dana Sejahtera backend",
+		zap.String("environment", cfg.Environment),
+		zap.String("security_mode", cfg.SecurityMode),
+		zap.String("db_host", cfg.DBHost),
+		zap.String("db_port", cfg.DBPort),
+		zap.String("db_name", cfg.DBName),
+		zap.String("db_user", cfg.DBUser),
+		// NOTE: db_password is intentionally NOT logged
+	)
+
+	// ── Database — single initialization point ────────────────────────────────
+	db, err := database.New(cfg.DatabaseURL, log)
 	if err != nil {
 		return fmt.Errorf("database connection: %w", err)
 	}
 
-	if err := database.AutoMigrate(db); err != nil {
+	if err := database.AutoMigrate(db, log); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
-	log.Info("Database connected and migrated")
 
 	// ── Repositories ──────────────────────────────────────────────────────────
 	userRepo := repository.NewUserRepository(db)
@@ -81,12 +92,27 @@ func Run() error {
 	r.Use(middleware.SecureHeaders())
 	r.Use(middleware.RequestSizeLimit())
 
-	// ── Health ────────────────────────────────────────────────────────────────
+	// ── Health endpoints ──────────────────────────────────────────────────────
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"status":        "ok",
 			"security_mode": security.GetMode(),
 			"version":       "v1",
+		})
+	})
+
+	r.GET("/health/db", func(c *gin.Context) {
+		if err := database.HealthCheck(db); err != nil {
+			log.Warn("DB health check failed", zap.Error(err))
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status":   "error",
+				"database": "disconnected",
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":   "ok",
+			"database": "connected",
 		})
 	})
 
@@ -119,18 +145,18 @@ func Run() error {
 
 			// ── Loans ────────────────────────────────────────────────────────
 			loans := protected.Group("/loans")
-			loans.POST("", loanH.Apply)                      // OWASP API4 + API6
-			loans.GET("", loanH.List)                        // OWASP API1 + API4
-			loans.GET("/:id", loanH.GetByID)                 // OWASP API1 (BOLA)
-			loans.PATCH("/:id/status", loanH.UpdateStatus)   // OWASP API3 (BOPLA)
-			loans.POST("/:id/approve", loanH.Approve)        // OWASP API5 (BFLA)
-			loans.POST("/:id/reject", loanH.Reject)          // OWASP API5
-			loans.GET("/:id/transactions", txH.ListByLoan)   // OWASP API1
+			loans.POST("", loanH.Apply)                    // OWASP API4 + API6
+			loans.GET("", loanH.List)                      // OWASP API1 + API4
+			loans.GET("/:id", loanH.GetByID)               // OWASP API1 (BOLA)
+			loans.PATCH("/:id/status", loanH.UpdateStatus) // OWASP API3 (BOPLA)
+			loans.POST("/:id/approve", loanH.Approve)      // OWASP API5 (BFLA)
+			loans.POST("/:id/reject", loanH.Reject)        // OWASP API5
+			loans.GET("/:id/transactions", txH.ListByLoan) // OWASP API1
 
 			// ── Transactions ─────────────────────────────────────────────────
 			txs := protected.Group("/transactions")
-			txs.GET("", txH.List)       // admin/staff only
-			txs.POST("", txH.Create)    // OWASP API5 + API6
+			txs.GET("", txH.List)    // admin/staff only
+			txs.POST("", txH.Create) // OWASP API5 + API6
 
 			// ── Admin ─────────────────────────────────────────────────────────
 			admin := protected.Group("/admin")
@@ -141,29 +167,29 @@ func Run() error {
 				admin.GET("/stats", adminH.Stats)
 			}
 
-			// ── SSRF demo ─────────────────────────────────────────────────────
-			// OWASP API7 + API10
+			// ── SSRF demo — OWASP API7 + API10 ───────────────────────────────
 			protected.POST("/internal/fetch", ssrfH.Fetch)
 		}
 	}
 
 	// ── API v0 — DEPRECATED: exposed only in vulnerable mode ──────────────────
 	// TODO: Vulnerability Injection Point — OWASP API9 (Improper Inventory Management)
-	// These endpoints have no auth and expose everything
 	if security.IsVulnerable() {
 		v0 := r.Group("/api/v0")
 		log.Warn("[VULNERABLE] Deprecated v0 routes registered — OWASP API9")
 		{
-			v0.GET("/loans", loanH.ListPublic)           // no auth, all loans
-			v0.GET("/users", adminH.ListUsersPublic)     // no auth, all users + hashes
-			v0.GET("/debug", adminH.Debug)               // stack trace + internals
+			v0.GET("/loans", loanH.ListPublic)       // no auth, all loans
+			v0.GET("/users", adminH.ListUsersPublic) // no auth, all users + hashes
+			v0.GET("/debug", adminH.Debug)           // stack trace + internals
 		}
 	}
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Info("Server starting",
+	log.Info("Server ready",
 		zap.String("addr", addr),
 		zap.String("mode", security.GetMode()),
+		zap.String("health", "GET /health"),
+		zap.String("health_db", "GET /health/db"),
 	)
 	return r.Run(addr)
 }
