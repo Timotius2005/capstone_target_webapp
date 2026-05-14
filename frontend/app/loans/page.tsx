@@ -60,8 +60,14 @@ export default function LoansPage() {
   const fetchLoans = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get<Loan[]>('/api/v1/loans')
-      setLoans(res.data)
+      const res = await api.get<Loan[] | { data: Loan[] }>('/api/v1/loans')
+
+      // Backend returns { data: [...], total: N } — unwrap the array
+      const list: Loan[] = Array.isArray(res.data)
+        ? res.data
+        : (res.data as { data?: Loan[] }).data ?? []
+
+      setLoans(list)
       if (vulnerable) {
         // TODO: Vulnerability Injection Point
         // Full loan data including internal IDs exposed in debug panel

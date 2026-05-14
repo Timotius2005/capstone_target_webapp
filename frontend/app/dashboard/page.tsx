@@ -116,17 +116,26 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const [loansRes, nasabahRes] = await Promise.all([
-          api.get<Loan[]>('/api/v1/loans'),
-          api.get<Nasabah[]>('/api/v1/nasabah'),
+          api.get<Loan[] | { data: Loan[] }>('/api/v1/loans'),
+          api.get<Nasabah[] | { data: Nasabah[] }>('/api/v1/nasabah'),
         ])
-        setLoans(loansRes.data)
-        setNasabahCount(nasabahRes.data.length)
+
+        // Backend returns { data: [...], total: N } — unwrap the array
+        const loansArray = Array.isArray(loansRes.data)
+          ? loansRes.data
+          : (loansRes.data as { data?: Loan[] }).data ?? []
+        const nasabahArray = Array.isArray(nasabahRes.data)
+          ? nasabahRes.data
+          : (nasabahRes.data as { data?: Nasabah[] }).data ?? []
+
+        setLoans(loansArray)
+        setNasabahCount(nasabahArray.length)
 
         if (vulnerable) {
           // TODO: Vulnerability Injection Point
           // Full raw API responses stored for debug panel rendering
           setRawLoans(loansRes.data)
-          setRawNasabah(nasabahRes.data)
+          setRawNasabah(nasabahRes.data)  // intentionally stores full wrapper incl. metadata
         }
       } catch {
         // Secure: swallow error silently; Vulnerable: logged by axios interceptor

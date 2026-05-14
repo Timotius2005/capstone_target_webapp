@@ -41,9 +41,15 @@ export default function NasabahPage() {
   const fetchNasabah = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get<Nasabah[]>('/api/v1/nasabah')
-      setNasabah(res.data)
-      setFiltered(res.data)
+      const res = await api.get<Nasabah[] | { data: Nasabah[] }>('/api/v1/nasabah')
+
+      // Backend returns { data: [...], total: N } — unwrap the array
+      const list: Nasabah[] = Array.isArray(res.data)
+        ? res.data
+        : (res.data as { data?: Nasabah[] }).data ?? []
+
+      setNasabah(list)
+      setFiltered(list)
       if (vulnerable) {
         // TODO: Vulnerability Injection Point
         // Full nasabah data (NIK, address, phone) exposed in debug panel

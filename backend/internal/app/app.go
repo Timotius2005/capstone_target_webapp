@@ -54,6 +54,11 @@ func Run() error {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 
+	// Load persisted mode from DB — overrides APP_SECURITY_MODE env var so that
+	// mode changes made at runtime survive a container restart.
+	database.LoadOrInitModeFromDB(db, log, cfg.SecurityMode)
+	security.LogMode(log)
+
 	// ── Repositories ──────────────────────────────────────────────────────────
 	userRepo := repository.NewUserRepository(db)
 	nasabahRepo := repository.NewNasabahRepository(db)
@@ -75,6 +80,7 @@ func Run() error {
 	adminH := handlers.NewAdminHandler(userRepo, log)
 	ssrfH := handlers.NewSSRFHandler(extSvc, log)
 	configH := handlers.NewConfigHandler(log)
+	systemH := handlers.NewSystemHandler(db, log)
 
 	// ── Gin engine ────────────────────────────────────────────────────────────
 	if security.IsVulnerable() {
@@ -94,7 +100,7 @@ func Run() error {
 	r.Use(middleware.SecureHeaders())
 	r.Use(middleware.RequestSizeLimit())
 
-	// ── Runtime config endpoints ──────────────────────────────────────────────
+	// ── Runtime config endpoints (legacy — admin auth required) ──────────────
 	// GET is public — frontend reads on every page load without auth.
 	r.GET("/config/mode", configH.GetMode)
 
@@ -106,6 +112,16 @@ func Run() error {
 	cfgRoutes.Use(middleware.RoleCheck("admin"))
 	{
 		cfgRoutes.PUT("/mode", configH.SetMode)
+	}
+
+	// ── Public system mode API (no auth — optional LAB_KEY protection) ────────
+	// These endpoints are intentionally unauthenticated for pentest lab use.
+	// Enable LAB_KEY env var to restrict access to holders of the lab token.
+	system := r.Group("/api/system")
+	system.Use(middleware.LabKeyRequired())
+	{
+		system.GET("/mode", systemH.GetMode)
+		system.PUT("/mode", systemH.SetMode)
 	}
 
 	// ── Health endpoints ──────────────────────────────────────────────────────

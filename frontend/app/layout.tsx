@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { ModeProvider } from '@/contexts/ModeContext'
+import GlobalModeSwitcher from '@/components/GlobalModeSwitcher'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
@@ -16,7 +17,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <ThemeProvider>
-          <ModeProvider>{children}</ModeProvider>
+          <ModeProvider>
+            {children}
+            <GlobalModeSwitcher />
+          </ModeProvider>
         </ThemeProvider>
       </body>
     </html>

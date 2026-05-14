@@ -35,6 +35,14 @@ export default function DataTable({
 }: DataTableProps) {
   const vulnerable = isVulnerable()
 
+  // Backend may return { data: [...], total: N } instead of a bare array.
+  // Normalise to always work with an array regardless of response shape.
+  const rows: Record<string, unknown>[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as unknown as { data?: unknown }).data)
+      ? ((data as unknown as { data: Record<string, unknown>[] }).data)
+      : []
+
   const visibleColumns = columns.filter(
     (c) => !(c.sensitiveInSecure && !vulnerable)
   )
@@ -65,7 +73,7 @@ export default function DataTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/20 dark:divide-slate-700/30">
-                {data.length === 0 ? (
+                {rows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={visibleColumns.length}
@@ -78,7 +86,7 @@ export default function DataTable({
                     </td>
                   </tr>
                 ) : (
-                  data.map((row, idx) => (
+                  rows.map((row, idx) => (
                     <tr
                       key={idx}
                       className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors duration-150"

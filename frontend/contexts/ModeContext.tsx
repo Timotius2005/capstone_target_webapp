@@ -83,7 +83,11 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const fetchMode = async () => {
       try {
-        const res = await fetch(`${API_BASE}/config/mode`)
+        const headers: Record<string, string> = {}
+        const labKey = process.env.NEXT_PUBLIC_LAB_KEY
+        if (labKey) headers['X-LAB-KEY'] = labKey
+
+        const res = await fetch(`${API_BASE}/api/system/mode`, { headers })
         if (res.ok) {
           const data = (await res.json()) as { mode: string }
           const resolved: Mode = data.mode === 'secure' ? 'secure' : 'sandbox'
@@ -100,25 +104,21 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     fetchMode()
   }, [])
 
-  // switchMode: calls PUT /config/mode (admin-only), then updates all local state.
-  // OWASP A01 — backend enforces admin role; frontend just sends the JWT.
+  // switchMode: calls PUT /api/system/mode (public endpoint, no auth required).
+  // Token storage is migrated if the user happens to be logged in.
   const switchMode = useCallback(
     async (newMode: Mode) => {
-      // Retrieve the token from whichever storage the current mode uses.
-      const token =
-        getRuntimeMode() === 'sandbox'
-          ? localStorage.getItem('auth_token')
-          : sessionStorage.getItem('_sess_t')
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const labKey = process.env.NEXT_PUBLIC_LAB_KEY
+      if (labKey) headers['X-LAB-KEY'] = labKey
 
-      if (!token) throw new Error('Not authenticated')
+      // Map internal 'sandbox' alias to the public API contract value 'vulnerable'.
+      const apiMode = newMode === 'sandbox' ? 'vulnerable' : 'secure'
 
-      const res = await fetch(`${API_BASE}/config/mode`, {
+      const res = await fetch(`${API_BASE}/api/system/mode`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ mode: newMode }),
+        headers,
+        body: JSON.stringify({ mode: apiMode }),
       })
 
       if (!res.ok) {
@@ -131,9 +131,15 @@ export function ModeProvider({ children }: { children: ReactNode }) {
       const data = (await res.json()) as { mode: string }
       const resolved: Mode = data.mode === 'secure' ? 'secure' : 'sandbox'
 
-      // Migrate token storage BEFORE updating the module variable so the old
-      // storage key is still readable during migration.
-      migrateTokenStorage(token, mode, resolved)
+      // Migrate JWT storage if the user is currently authenticated,
+      // so subsequent API calls still work after the mode change.
+      const token =
+        getRuntimeMode() === 'sandbox'
+          ? localStorage.getItem('auth_token')
+          : sessionStorage.getItem('_sess_t')
+      if (token) {
+        migrateTokenStorage(token, mode, resolved)
+      }
 
       setRuntimeMode(resolved)
       setMode(resolved)

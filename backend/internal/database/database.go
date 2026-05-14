@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -97,14 +98,64 @@ func AutoMigrate(db *gorm.DB, log *zap.Logger) error {
 		&models.Nasabah{},
 		&models.Loan{},
 		&models.Transaction{},
+		&models.SystemSetting{},
+		&models.ModeChangeLog{},
 	); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 
 	log.Info("Database migration successful",
-		zap.Strings("tables", []string{"users", "nasabah", "loans", "transactions"}),
+		zap.Strings("tables", []string{
+			"users", "nasabah", "loans", "transactions",
+			"system_settings", "mode_change_logs",
+		}),
 	)
 	return nil
+}
+
+// LoadOrInitModeFromDB loads the persisted security mode from system_settings.
+// If no row exists yet, it seeds one using fallbackMode (from APP_SECURITY_MODE env).
+// The in-memory security mode is updated to match the database value.
+// Call this once after AutoMigrate succeeds.
+func LoadOrInitModeFromDB(db *gorm.DB, log *zap.Logger, fallbackMode string) {
+	var setting models.SystemSetting
+	result := db.Where("id = ?", models.SystemSettingsID).First(&setting)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// No row yet — seed from the env-var default.
+		dbMode := "secure"
+		if fallbackMode == "sandbox" || fallbackMode == "vulnerable" {
+			dbMode = "vulnerable"
+		}
+		setting = models.SystemSetting{
+			ID:        models.SystemSettingsID,
+			Mode:      dbMode,
+			UpdatedAt: time.Now().UTC(),
+		}
+		if err := db.Create(&setting).Error; err != nil {
+			log.Warn("Failed to seed system_settings row — using in-memory default",
+				zap.Error(err),
+			)
+			return
+		}
+		log.Info("system_settings row seeded", zap.String("mode", dbMode))
+	} else if result.Error != nil {
+		log.Warn("Failed to load mode from DB — keeping env-var default",
+			zap.Error(result.Error),
+		)
+		return
+	}
+
+	// Apply DB value to the in-memory security package (overrides env-var Init).
+	if setting.Mode == "vulnerable" {
+		security.SetMode(security.ModeSandbox)
+	} else {
+		security.SetMode(security.ModeSecure)
+	}
+	log.Info("Security mode loaded from database",
+		zap.String("mode", setting.Mode),
+		zap.String("note", "DB value overrides APP_SECURITY_MODE env var"),
+	)
 }
 
 // HealthCheck returns nil if the database is reachable, or an error otherwise.
