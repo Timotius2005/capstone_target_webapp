@@ -1,15 +1,8 @@
 /**
  * GlobalModeSwitcher unit tests
- *
- * Validates:
- * - Banner renders with correct text and colour per mode
- * - Toggle button calls switchMode with the opposite mode
- * - Toast notification appears after successful switch
- * - Error toast appears when switchMode rejects
- * - UI is accessible (role, aria-label)
  */
 import React from 'react'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import GlobalModeSwitcher from '@/components/GlobalModeSwitcher'
 import { ModeContext } from '@/contexts/ModeContext'
 
@@ -18,32 +11,39 @@ function renderSwitcher(
   switchMode: jest.Mock = jest.fn().mockResolvedValue(undefined)
 ) {
   const ctx = { mode, isLoading: false, switchMode }
-  return { switchMode, ...render(
-    <ModeContext.Provider value={ctx}>
-      <GlobalModeSwitcher />
-    </ModeContext.Provider>
-  )}
+  return {
+    switchMode,
+    ...render(
+      <ModeContext.Provider value={ctx}>
+        <GlobalModeSwitcher />
+      </ModeContext.Provider>
+    ),
+  }
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
 describe('GlobalModeSwitcher — rendering', () => {
-  it('shows SECURE label in secure mode', () => {
+  it('shows SECURE MODE label in secure mode', () => {
     renderSwitcher('secure')
-    expect(screen.getByText(/SECURE MODE/i)).toBeInTheDocument()
+    // Component renders two spans with the mode text (desktop + mobile)
+    // — use getAllByText and check at least one is present
+    const labels = screen.getAllByText(/SECURE MODE/i)
+    expect(labels.length).toBeGreaterThan(0)
   })
 
   it('shows VULNERABLE label in vulnerable mode', () => {
     renderSwitcher('sandbox')
-    expect(screen.getByText(/VULNERABLE/i)).toBeInTheDocument()
+    const labels = screen.getAllByText(/VULNERABLE/i)
+    expect(labels.length).toBeGreaterThan(0)
   })
 
-  it('offers "Switch to Vulnerable" when currently secure', () => {
+  it('offers "Switch to Vulnerable" toggle button when currently secure', () => {
     renderSwitcher('secure')
     expect(screen.getByRole('button', { name: /Switch to Vulnerable/i })).toBeInTheDocument()
   })
 
-  it('offers "Switch to Secure" when currently vulnerable', () => {
+  it('offers "Switch to Secure" toggle button when currently vulnerable', () => {
     renderSwitcher('sandbox')
     expect(screen.getByRole('button', { name: /Switch to Secure/i })).toBeInTheDocument()
   })
@@ -60,17 +60,13 @@ describe('GlobalModeSwitcher — toggle interaction', () => {
   it('calls switchMode("sandbox") when toggled from secure', async () => {
     const { switchMode } = renderSwitcher('secure')
     fireEvent.click(screen.getByRole('button', { name: /Switch to Vulnerable/i }))
-    await waitFor(() => {
-      expect(switchMode).toHaveBeenCalledWith('sandbox')
-    })
+    await waitFor(() => expect(switchMode).toHaveBeenCalledWith('sandbox'))
   })
 
   it('calls switchMode("secure") when toggled from vulnerable', async () => {
     const { switchMode } = renderSwitcher('sandbox')
     fireEvent.click(screen.getByRole('button', { name: /Switch to Secure/i }))
-    await waitFor(() => {
-      expect(switchMode).toHaveBeenCalledWith('secure')
-    })
+    await waitFor(() => expect(switchMode).toHaveBeenCalledWith('secure'))
   })
 
   it('switchMode is called exactly once per click', async () => {
@@ -83,7 +79,7 @@ describe('GlobalModeSwitcher — toggle interaction', () => {
 // ── Success toast ─────────────────────────────────────────────────────────────
 
 describe('GlobalModeSwitcher — success toast', () => {
-  it('shows success toast after switching to vulnerable', async () => {
+  it('shows a toast after a successful switch', async () => {
     renderSwitcher('secure', jest.fn().mockResolvedValue(undefined))
     fireEvent.click(screen.getByRole('button', { name: /Switch to Vulnerable/i }))
     await waitFor(() => {
@@ -123,22 +119,21 @@ describe('GlobalModeSwitcher — loading state', () => {
 // ── Mode change propagates to context ────────────────────────────────────────
 
 describe('GlobalModeSwitcher — context propagation', () => {
-  it('mode change is reflected in the banner text after context update', () => {
-    // Simulate context re-render after switchMode resolves
+  it('banner text updates when context switches from secure to vulnerable', () => {
     const { rerender } = render(
       <ModeContext.Provider value={{ mode: 'secure', isLoading: false, switchMode: jest.fn() }}>
         <GlobalModeSwitcher />
       </ModeContext.Provider>
     )
-    expect(screen.getByText(/SECURE MODE/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/SECURE MODE/i).length).toBeGreaterThan(0)
 
-    // Context updates to vulnerable
     rerender(
       <ModeContext.Provider value={{ mode: 'sandbox', isLoading: false, switchMode: jest.fn() }}>
         <GlobalModeSwitcher />
       </ModeContext.Provider>
     )
-    expect(screen.getByText(/VULNERABLE/i)).toBeInTheDocument()
-    expect(screen.queryByText(/SECURE MODE/i)).not.toBeInTheDocument()
+
+    expect(screen.getAllByText(/VULNERABLE/i).length).toBeGreaterThan(0)
+    expect(screen.queryAllByText(/SECURE MODE/i).length).toBe(0)
   })
 })
