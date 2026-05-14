@@ -67,26 +67,27 @@ func (h *SystemHandler) SetMode(c *gin.Context) {
 	// Update in-memory mode (atomic).
 	security.SetMode(newMode)
 
-	// Persist to DB — always update the singleton row.
-	if err := h.db.Model(&models.SystemSetting{}).
-		Where("id = ?", models.SystemSettingsID).
-		Updates(map[string]interface{}{
-			"mode":       newModeDisplay,
-			"updated_at": now,
-		}).Error; err != nil {
-		h.log.Warn("Failed to persist mode change to DB", zap.Error(err))
-		// Non-fatal: in-memory mode is already updated, system still works.
-	}
+	// Persist to DB — always update the singleton row (no-op if db is nil, e.g. in tests).
+	if h.db != nil {
+		if err := h.db.Model(&models.SystemSetting{}).
+			Where("id = ?", models.SystemSettingsID).
+			Updates(map[string]interface{}{
+				"mode":       newModeDisplay,
+				"updated_at": now,
+			}).Error; err != nil {
+			h.log.Warn("Failed to persist mode change to DB", zap.Error(err))
+		}
 
-	// Append immutable audit log entry.
-	if err := h.db.Create(&models.ModeChangeLog{
-		PreviousMode: oldModeDisplay,
-		NewMode:      newModeDisplay,
-		IPAddress:    c.ClientIP(),
-		UserAgent:    c.Request.UserAgent(),
-		ChangedAt:    now,
-	}).Error; err != nil {
-		h.log.Warn("Failed to write mode_change_logs entry", zap.Error(err))
+		// Append immutable audit log entry.
+		if err := h.db.Create(&models.ModeChangeLog{
+			PreviousMode: oldModeDisplay,
+			NewMode:      newModeDisplay,
+			IPAddress:    c.ClientIP(),
+			UserAgent:    c.Request.UserAgent(),
+			ChangedAt:    now,
+		}).Error; err != nil {
+			h.log.Warn("Failed to write mode_change_logs entry", zap.Error(err))
+		}
 	}
 
 	h.log.Info("System mode changed via public API",

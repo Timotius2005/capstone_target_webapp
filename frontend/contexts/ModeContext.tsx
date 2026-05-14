@@ -23,7 +23,7 @@ interface ModeCtx {
   switchMode: (mode: Mode) => Promise<void>
 }
 
-const ModeContext = createContext<ModeCtx>({
+export const ModeContext = createContext<ModeCtx>({
   mode: 'secure',
   isLoading: true,
   switchMode: async () => {},
