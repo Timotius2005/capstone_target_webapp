@@ -6,7 +6,7 @@ import StatCard from '@/components/StatCard'
 import DataTable, { type Column } from '@/components/DataTable'
 import { api } from '@/services/api'
 import { authService } from '@/services/auth'
-import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 interface Loan {
   id: string
@@ -109,7 +109,8 @@ export default function DashboardPage() {
   const [rawLoans, setRawLoans] = useState<unknown>(null)
   const [rawNasabah, setRawNasabah] = useState<unknown>(null)
 
-  const vulnerable = isVulnerable()
+  const { mode } = useMode()
+  const vulnerable = mode === 'sandbox'
   const user = authService.getUser()
 
   useEffect(() => {
@@ -156,28 +157,35 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout title="Dashboard">
-      {/* ── Welcome header ─────────────────────── */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">
-          Selamat datang kembali,{' '}
-          <span className="gradient-text">{user?.username || 'Pengguna'}</span> 👋
-        </h2>
-        <p className="text-sm text-slate-400 mt-1">
-          Berikut ringkasan portofolio pinjaman hari ini.
-        </p>
-
+      {/* ── Page header ────────────────────────── */}
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+            Loan Management System
+          </p>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight">
+            Dashboard Overview
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Selamat datang,{' '}
+            <span className="font-semibold text-slate-600 dark:text-slate-300">{user?.username || 'Pengguna'}</span>
+            {user?.role && (
+              <span className="ml-1.5 text-slate-400">({user.role})</span>
+            )}
+          </p>
+        </div>
         {/* TODO: Vulnerability Injection Point */}
         {/* Vulnerable mode: expose user internal ID on dashboard */}
         {vulnerable && (user as { id?: string })?.id && (
-          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
-            <span className="text-red-400 text-[10px] font-mono">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-red-700 dark:text-red-400 text-[10px] font-mono">
               [VULN] User UUID: {(user as { id?: string }).id}
             </span>
           </div>
         )}
       </div>
 
-      {/* ── Stat cards ─────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Total Nasabah"
@@ -217,65 +225,70 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ── Loan status breakdown ───────────────── */}
+      {/* ── Portfolio Distribution ──────────────── */}
       {!loading && loans.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          {[
-            {
-              label: 'Aktif / Disetujui',
-              count: activeLoans.length,
-              color: 'from-emerald-500/20 to-emerald-500/5',
-              accent: 'bg-emerald-400',
-              pct: loans.length ? Math.round((activeLoans.length / loans.length) * 100) : 0,
-            },
-            {
-              label: 'Menunggu',
-              count: pendingLoans.length,
-              color: 'from-amber-500/20 to-amber-500/5',
-              accent: 'bg-amber-400',
-              pct: loans.length ? Math.round((pendingLoans.length / loans.length) * 100) : 0,
-            },
-            {
-              label: 'Ditolak',
-              count: loans.filter((l) => l.status === 'rejected').length,
-              color: 'from-red-500/20 to-red-500/5',
-              accent: 'bg-red-400',
-              pct: loans.length
-                ? Math.round(
-                    (loans.filter((l) => l.status === 'rejected').length / loans.length) * 100
-                  )
-                : 0,
-            },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className={`glass-card rounded-2xl p-5 bg-gradient-to-br ${item.color}`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{item.label}</p>
-                <span className="text-2xl font-bold text-slate-800 dark:text-white">{item.count}</span>
+        <>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Portfolio Distribution
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            {[
+              {
+                label: 'Aktif / Disetujui',
+                count: activeLoans.length,
+                color: 'from-emerald-500/20 to-emerald-500/5',
+                accent: 'bg-emerald-400',
+                pct: loans.length ? Math.round((activeLoans.length / loans.length) * 100) : 0,
+              },
+              {
+                label: 'Menunggu',
+                count: pendingLoans.length,
+                color: 'from-amber-500/20 to-amber-500/5',
+                accent: 'bg-amber-400',
+                pct: loans.length ? Math.round((pendingLoans.length / loans.length) * 100) : 0,
+              },
+              {
+                label: 'Ditolak',
+                count: loans.filter((l) => l.status === 'rejected').length,
+                color: 'from-red-500/20 to-red-500/5',
+                accent: 'bg-red-400',
+                pct: loans.length
+                  ? Math.round(
+                      (loans.filter((l) => l.status === 'rejected').length / loans.length) * 100
+                    )
+                  : 0,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className={`enterprise-card rounded-lg p-5 bg-gradient-to-br ${item.color}`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{item.label}</p>
+                  <span className="text-2xl font-bold text-slate-800 dark:text-white">{item.count}</span>
+                </div>
+                <div className="w-full bg-slate-200/50 dark:bg-slate-700/50 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full ${item.accent}`}
+                    style={{ width: `${item.pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">{item.pct}% dari total</p>
               </div>
-              <div className="w-full bg-slate-200/50 dark:bg-slate-700/50 rounded-full h-1.5">
-                <div
-                  className={`h-1.5 rounded-full ${item.accent}`}
-                  style={{ width: `${item.pct}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-400 mt-1.5">{item.pct}% dari total</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* ── Recent loans table ──────────────────── */}
+      {/* ── Recent Activity ─────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-bold text-slate-800 dark:text-white">
-            Pinjaman Terbaru
-          </h3>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            Recent Loan Activity
+          </p>
           {vulnerable && (
-            <span className="text-red-400/60 text-[10px] font-mono">
-              [VULN] ID columns exposed below
+            <span className="text-red-500 text-[10px] font-mono bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-2 py-0.5 rounded">
+              [VULN] ID columns exposed
             </span>
           )}
         </div>
@@ -291,14 +304,16 @@ export default function DashboardPage() {
         {/* TODO: Vulnerability Injection Point */}
         {/* Nasabah raw data also exposed in vulnerable mode */}
         {vulnerable && rawNasabah != null && (
-          <div className="mt-4 glass-card rounded-2xl p-4 border border-red-500/25 bg-red-500/5">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-              <span className="text-red-400 text-[10px] font-semibold uppercase tracking-widest">
-                Debug: Raw Nasabah API Data [Vulnerability Injection Point]
-              </span>
+          <div className="mt-4 enterprise-card rounded-lg p-4 border-l-4 border-red-500 bg-red-50 dark:bg-red-950/20">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-red-700 dark:text-red-400 text-[10px] font-semibold uppercase tracking-widest">
+                  Debug: Raw Nasabah API Data [Vulnerability Injection Point]
+                </span>
+              </div>
             </div>
-            <pre className="text-xs text-red-300/60 overflow-x-auto max-h-48 font-mono leading-relaxed">
+            <pre className="text-xs text-red-700/70 dark:text-red-300/70 overflow-x-auto max-h-48 font-mono leading-relaxed">
               {JSON.stringify(rawNasabah, null, 2)}
             </pre>
           </div>

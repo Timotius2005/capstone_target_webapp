@@ -6,6 +6,7 @@ import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import { authService } from '@/services/auth'
 import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -16,6 +17,8 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
+  const { mode } = useMode()
+  const vulnMode = mode === 'sandbox'
 
   useEffect(() => {
     setMounted(true)
@@ -50,7 +53,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   if (!mounted) return null
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#080d1a]">
+    <div className="min-h-screen bg-[#EEF2F7] dark:bg-slate-950">
       <Sidebar open={sidebarOpen} />
 
       <div
@@ -59,6 +62,11 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
         }`}
       >
         <Navbar title={title} onMenuToggle={() => setSidebarOpen((v) => !v)} />
+
+        {/* Thin mode strip — red line when vulnerable, invisible when secure */}
+        {vulnMode && (
+          <div className="h-0.5 bg-red-600 w-full flex-shrink-0" aria-hidden="true" />
+        )}
 
         <main className="flex-1 p-4 sm:p-6 page-enter">
           {children}

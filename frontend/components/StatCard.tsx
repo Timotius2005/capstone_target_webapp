@@ -13,40 +13,38 @@ export default function StatCard({
   value,
   subtitle,
   icon,
-  iconBg,
   trend,
   trendUp,
 }: StatCardProps) {
   return (
-    <div className="glass-card rounded-2xl p-6 hover-lift group">
-      <div className="flex items-start justify-between mb-4">
+    <div className="enterprise-card rounded-lg p-5 hover-lift group">
+      <div className="flex items-start justify-between mb-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
             {title}
           </p>
           <p className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight truncate">
             {value}
           </p>
           {subtitle && (
-            <p className="text-xs text-slate-400 mt-1 truncate">{subtitle}</p>
+            <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>
           )}
         </div>
-        <div
-          className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg flex-shrink-0 ml-3 ${iconBg}`}
-        >
+        {/* Icon — small, flat, muted */}
+        <div className="w-9 h-9 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-base flex-shrink-0 ml-3">
           {icon}
         </div>
       </div>
 
       {trend && (
-        <div className="flex items-center gap-1.5 pt-3 border-t border-slate-200/30 dark:border-slate-700/30">
+        <div className="flex items-center gap-1.5 pt-3 border-t border-slate-100 dark:border-slate-800">
           <span
             className={`text-xs font-semibold ${
               trendUp === undefined
                 ? 'text-slate-400'
                 : trendUp
-                ? 'text-emerald-400'
-                : 'text-red-400'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-red-600 dark:text-red-400'
             }`}
           >
             {trendUp === undefined ? '→' : trendUp ? '↑' : '↓'} {trend}

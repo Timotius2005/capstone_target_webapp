@@ -9,26 +9,28 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        indigo: {
-          450: '#5a67d8',
+        navy: {
+          50:  '#EEF2F7',
+          100: '#D5E0EE',
+          200: '#ADC1DD',
+          500: '#2D5FA4',
+          600: '#1E3A8A',
+          700: '#162D6E',
+          800: '#0B1E3D',
+          900: '#060E20',
         },
       },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-      },
       animation: {
-        'fade-in': 'fadeIn 0.25s ease-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'spin-slow': 'spin 3s linear infinite',
+        'fade-in':  'fadeIn 0.2s ease-out',
+        'slide-up': 'slideUp 0.22s ease-out',
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '0%':   { opacity: '0', transform: 'translateY(4px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(16px)' },
+          '0%':   { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
@@ -36,11 +38,15 @@ module.exports = {
         sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'sans-serif'],
       },
       boxShadow: {
-        glass: '0 8px 32px rgba(0, 0, 0, 0.12)',
-        'glass-lg': '0 16px 48px rgba(0, 0, 0, 0.18)',
-        glow: '0 0 20px rgba(99, 102, 241, 0.35)',
-        'glow-red': '0 0 20px rgba(239, 68, 68, 0.35)',
-        'glow-green': '0 0 20px rgba(16, 185, 129, 0.35)',
+        // Enterprise shadows — subtle, no neon
+        card:     '0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)',
+        'card-md':'0 4px 12px rgba(0,0,0,0.09), 0 2px 4px rgba(0,0,0,0.04)',
+        // Aliases kept for backward-compat — all nullified
+        glass:      '0 1px 3px rgba(0,0,0,0.07)',
+        'glass-lg': '0 4px 12px rgba(0,0,0,0.08)',
+        glow:       '0 0 0 transparent',
+        'glow-red': '0 0 0 transparent',
+        'glow-green':'0 0 0 transparent',
       },
     },
   },

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import ModeBadge from '@/components/ModeBadge'
 import { authService } from '@/services/auth'
-import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 interface DebugInfo {
   token?: string
@@ -26,7 +26,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [debugPanel, setDebugPanel] = useState<DebugInfo | null>(null)
 
-  const vulnerable = isVulnerable()
+  const { mode } = useMode()
+  const vulnerable = mode === 'sandbox'
 
   useEffect(() => {
     // Secure: redirect immediately if already logged in
@@ -98,71 +99,84 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex">
-      {/* ── Left panel ────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 animated-gradient flex-col justify-between p-12 relative overflow-hidden">
-        {/* Decorative blobs */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-48 -right-48 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute -bottom-48 -left-32 w-80 h-80 bg-white/5 rounded-full blur-2xl" />
-          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-white/3 rounded-full blur-3xl" />
-        </div>
+
+      {/* ── Left panel — solid navy branding ─────────────────────── */}
+      <div className="hidden lg:flex lg:w-5/12 xl:w-[42%] bg-[#0B1E3D] flex-col justify-between p-12 relative overflow-hidden">
+
+        {/* Subtle geometric texture */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 40px), repeating-linear-gradient(90deg, #fff 0px, #fff 1px, transparent 1px, transparent 40px)',
+          }}
+        />
 
         {/* Top branding */}
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white font-bold text-xl border border-white/30 shadow-glass">
+            <div className="w-11 h-11 bg-[#1E3A8A] rounded-lg flex items-center justify-center text-white font-bold text-lg border border-white/10">
               DS
             </div>
             <div>
-              <p className="text-white font-bold text-xl leading-tight">PT. Dana Sejahtera</p>
-              <p className="text-white/60 text-sm">Fintech Loan Management System</p>
+              <p className="text-white font-bold text-xl leading-tight tracking-tight">
+                PT. Dana Sejahtera
+              </p>
+              <p className="text-white/40 text-xs tracking-wide mt-0.5">
+                Fintech Loan Management System
+              </p>
             </div>
           </div>
-          <ModeBadge className="!bg-white/10 !border-white/25 !text-white" />
+          <div>
+            <ModeBadge className="!bg-white/8 !border-white/15 !text-white/80" />
+          </div>
         </div>
 
-        {/* Center quote */}
+        {/* Center copy */}
         <div className="relative z-10">
-          <div className="text-5xl mb-6 opacity-60">"</div>
-          <p className="text-white/90 text-xl font-light italic leading-relaxed mb-4">
+          <div className="w-10 h-0.5 bg-white/20 mb-6" />
+          <p className="text-white/75 text-xl font-light leading-relaxed mb-4 tracking-tight">
             Empowering financial futures through trusted and transparent lending solutions.
           </p>
-          <p className="text-white/40 text-sm">— PT. Dana Sejahtera, Est. 2016</p>
+          <p className="text-white/30 text-sm">— PT. Dana Sejahtera, Est. 2016</p>
         </div>
 
         {/* Stats row */}
-        <div className="relative z-10 grid grid-cols-3 gap-6 pt-6 border-t border-white/15">
+        <div className="relative z-10 grid grid-cols-3 gap-4 pt-6 border-t border-white/10">
           {[
             { label: 'Nasabah Aktif', value: '12.4K+' },
             { label: 'Portfolio', value: 'Rp 2.4T' },
             { label: 'Tahun Beroperasi', value: '8+' },
           ].map((s) => (
             <div key={s.label}>
-              <p className="text-white font-bold text-2xl">{s.value}</p>
-              <p className="text-white/50 text-xs mt-0.5">{s.label}</p>
+              <p className="text-white font-bold text-xl tracking-tight">{s.value}</p>
+              <p className="text-white/35 text-xs mt-0.5">{s.label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Right panel (form) ─────────────────────── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-slate-50 dark:bg-[#080d1a]">
-        <div className="w-full max-w-[400px]">
+      {/* ── Right panel — login form ──────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-[#EEF2F7] dark:bg-slate-950">
+        <div className="w-full max-w-sm">
+
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-12 h-12 animated-gradient rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-glow">
+            <div className="w-10 h-10 bg-[#1E3A8A] rounded-lg flex items-center justify-center text-white font-bold text-base">
               DS
             </div>
-            <p className="font-bold text-xl text-slate-800 dark:text-white">PT. Dana Sejahtera</p>
+            <p className="font-bold text-lg text-slate-800 dark:text-white tracking-tight">
+              PT. Dana Sejahtera
+            </p>
           </div>
 
           {/* Card */}
-          <div className="glass-card rounded-3xl p-8 shadow-glass-lg">
-            <div className="mb-7">
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1.5">
-                Selamat Datang 👋
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-card p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-1 tracking-tight">
+                System Login
               </h2>
-              <p className="text-slate-400 text-sm">Masuk ke sistem manajemen pinjaman</p>
+              <p className="text-slate-400 text-sm">
+                Masuk ke sistem manajemen pinjaman
+              </p>
               <div className="mt-3 lg:hidden">
                 <ModeBadge size="sm" />
               </div>
@@ -170,14 +184,14 @@ function LoginForm() {
 
             {/* Vulnerable warning banner */}
             {vulnerable && (
-              <div className="mb-5 p-3.5 rounded-xl border border-red-500/30 bg-red-500/8">
-                <div className="flex gap-2.5">
-                  <span className="text-red-400 text-base flex-shrink-0 mt-0.5">⚠</span>
+              <div className="mb-5 p-3 rounded-md border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30">
+                <div className="flex gap-2">
+                  <span className="text-red-600 font-bold text-sm flex-shrink-0">⚠</span>
                   <div>
-                    <p className="text-red-400 text-xs font-semibold">
+                    <p className="text-red-700 dark:text-red-400 text-xs font-semibold">
                       Vulnerable Mode — Security Disabled
                     </p>
-                    <p className="text-red-300/60 text-xs mt-0.5 leading-relaxed">
+                    <p className="text-red-600/60 dark:text-red-400/50 text-xs mt-0.5">
                       Form validation off · JWT → localStorage · Full errors exposed · See DevTools Console
                     </p>
                     {/* TODO: Vulnerability Injection Point */}
@@ -224,14 +238,13 @@ function LoginForm() {
               {/* Error */}
               {error && (
                 <div
-                  className={`p-3 rounded-xl text-xs font-medium border ${
+                  className={`p-3 rounded-md text-xs font-medium border-l-4 ${
                     vulnerable
-                      ? 'border-red-500/40 bg-red-500/10 text-red-400 font-mono'
-                      : 'border-red-200 bg-red-50 dark:border-red-800/40 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                      ? 'border-red-500 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 font-mono'
+                      : 'border-red-400 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400'
                   }`}
                 >
                   {/* TODO: Vulnerability Injection Point */}
-                  {/* Vulnerable: server error message verbatim; Secure: generic */}
                   {error}
                 </div>
               )}
@@ -240,12 +253,15 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 animated-gradient text-white font-semibold rounded-xl shadow-lg hover:shadow-glow hover:scale-[1.015] active:scale-[0.985] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg mt-2"
+                className="w-full py-2.5 bg-[#1E3A8A] hover:bg-[#1E40AF] active:bg-[#1D3480]
+                           text-white font-semibold rounded-md text-sm
+                           transition-colors duration-150 shadow-sm
+                           disabled:opacity-50 disabled:cursor-not-allowed mt-1"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Memproses...
+                    Memproses…
                   </span>
                 ) : (
                   'Masuk ke Sistem'
@@ -256,22 +272,22 @@ function LoginForm() {
             {/* TODO: Vulnerability Injection Point */}
             {/* Debug panel — JWT and internal IDs rendered in UI in vulnerable mode */}
             {vulnerable && debugPanel && (
-              <div className="mt-5 p-4 rounded-xl border border-red-500/30 bg-red-500/5 animate-fade-in">
+              <div className="mt-5 p-4 rounded-md border-l-4 border-red-500 bg-red-50 dark:bg-red-950/20 animate-fade-in">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-                  <span className="text-red-400 text-[10px] font-semibold uppercase tracking-widest">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-red-700 dark:text-red-400 text-[10px] font-semibold uppercase tracking-widest">
                     Debug: Login Response [Vulnerability Injection Point]
                   </span>
                 </div>
                 <div className="space-y-1.5">
                   {Object.entries(debugPanel).map(([k, v]) => (
                     <div key={k} className="flex gap-2 text-xs font-mono">
-                      <span className="text-red-400/60 flex-shrink-0 w-24">{k}:</span>
-                      <span className="text-red-300/80 break-all">{v}</span>
+                      <span className="text-red-500/60 flex-shrink-0 w-24">{k}:</span>
+                      <span className="text-red-700/80 dark:text-red-300/80 break-all">{v}</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-red-300/40 text-[10px] mt-3">
+                <p className="text-red-400/50 text-[10px] mt-3">
                   Redirecting to dashboard in 2.5s...
                 </p>
               </div>
@@ -279,7 +295,7 @@ function LoginForm() {
           </div>
 
           <p className="text-center text-[11px] text-slate-400 mt-5">
-            PT. Dana Sejahtera © {new Date().getFullYear()} · All rights reserved
+            PT. Dana Sejahtera &copy; {new Date().getFullYear()} &middot; Internal System
           </p>
         </div>
       </div>

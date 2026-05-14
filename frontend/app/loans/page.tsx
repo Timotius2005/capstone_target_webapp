@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import DashboardLayout from '@/components/DashboardLayout'
 import DataTable, { type Column } from '@/components/DataTable'
 import { api } from '@/services/api'
-import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 interface Loan {
   id: string
@@ -55,7 +55,8 @@ export default function LoansPage() {
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
 
-  const vulnerable = isVulnerable()
+  const { mode } = useMode()
+  const vulnerable = mode === 'sandbox'
 
   const fetchLoans = useCallback(async () => {
     setLoading(true)

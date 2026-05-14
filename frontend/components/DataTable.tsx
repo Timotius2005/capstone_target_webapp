@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { isVulnerable } from '@/utils/securityMode'
+import { useMode } from '@/contexts/ModeContext'
 
 export interface Column {
   key: string
@@ -19,9 +19,9 @@ interface DataTableProps {
 }
 
 const Skeleton = () => (
-  <div className="space-y-3 p-6">
+  <div className="space-y-2 p-5">
     {Array.from({ length: 5 }).map((_, i) => (
-      <div key={i} className="h-10 bg-slate-200 dark:bg-slate-700/50 rounded-lg animate-pulse" />
+      <div key={i} className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
     ))}
   </div>
 )
@@ -33,10 +33,9 @@ export default function DataTable({
   emptyMessage = 'Tidak ada data tersedia.',
   rawApiData,
 }: DataTableProps) {
-  const vulnerable = isVulnerable()
+  const { mode } = useMode()
+  const vulnerable = mode === 'sandbox'
 
-  // Backend may return { data: [...], total: N } instead of a bare array.
-  // Normalise to always work with an array regardless of response shape.
   const rows: Record<string, unknown>[] = Array.isArray(data)
     ? data
     : Array.isArray((data as unknown as { data?: unknown }).data)
@@ -49,22 +48,22 @@ export default function DataTable({
 
   return (
     <div className="space-y-4">
-      <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="enterprise-card rounded-lg overflow-hidden">
         {loading ? (
           <Skeleton />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200/30 dark:border-slate-700/40">
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
                   {visibleColumns.map((col) => (
                     <th
                       key={col.key}
-                      className="px-6 py-4 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap"
+                      className="px-5 py-3 text-left text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap"
                     >
                       {col.label}
                       {vulnerable && col.sensitiveInSecure && (
-                        <span className="ml-1.5 text-red-400 font-normal normal-case tracking-normal">
+                        <span className="ml-1.5 text-red-500 font-normal normal-case tracking-normal text-[10px]">
                           [exposed]
                         </span>
                       )}
@@ -72,15 +71,15 @@ export default function DataTable({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/20 dark:divide-slate-700/30">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {rows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={visibleColumns.length}
-                      className="px-6 py-16 text-center text-slate-400 text-sm"
+                      className="px-5 py-12 text-center text-slate-400 text-sm"
                     >
                       <div className="flex flex-col items-center gap-2">
-                        <span className="text-3xl">📭</span>
+                        <span className="text-2xl opacity-40">—</span>
                         {emptyMessage}
                       </div>
                     </td>
@@ -89,12 +88,12 @@ export default function DataTable({
                   rows.map((row, idx) => (
                     <tr
                       key={idx}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors duration-150"
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors duration-100"
                     >
                       {visibleColumns.map((col) => (
                         <td
                           key={col.key}
-                          className="px-6 py-3.5 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap"
+                          className="px-5 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap"
                         >
                           {col.render
                             ? col.render(row[col.key], row)
@@ -113,19 +112,19 @@ export default function DataTable({
       {/* TODO: Vulnerability Injection Point */}
       {/* Debug panel — exposes raw API response with hidden/sensitive fields */}
       {vulnerable && rawApiData != null && (
-        <div className="glass-card rounded-2xl p-4 border border-red-500/25 bg-red-500/5">
+        <div className="enterprise-card rounded-lg p-4 border-l-4 border-red-500 bg-red-50 dark:bg-red-950/20 dark:border-red-900">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-              <span className="text-red-400 text-xs font-semibold uppercase tracking-wider">
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider">
                 Debug: Full API Response
               </span>
             </div>
-            <span className="text-red-400/50 text-[10px] font-mono">
+            <span className="text-red-400/60 text-[10px] font-mono">
               [Vulnerability Injection Point]
             </span>
           </div>
-          <pre className="text-xs text-red-300/70 overflow-x-auto max-h-56 leading-relaxed font-mono">
+          <pre className="text-xs text-red-700/70 dark:text-red-300/70 overflow-x-auto max-h-56 leading-relaxed font-mono">
             {JSON.stringify(rawApiData, null, 2)}
           </pre>
         </div>

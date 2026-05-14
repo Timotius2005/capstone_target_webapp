@@ -2,43 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── CSS Custom Properties ─────────────────────────────────────────────── */
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
 :root {
-  --bg-primary: #f0f4ff;
-  --bg-secondary: #ffffff;
-  --sidebar-bg: #ffffff;
-  --card-bg: rgba(255, 255, 255, 0.75);
-  --card-border: rgba(99, 102, 241, 0.12);
-  --text-primary: #1e293b;
-  --text-muted: #64748b;
-  --gradient-a: #4f46e5;
-  --gradient-b: #3b82f6;
-  --gradient-c: #8b5cf6;
+  --bg-primary:   #EEF2F7;
+  --bg-secondary: #FFFFFF;
+  --sidebar-bg:   #0B1E3D;
+  --card-bg:      #FFFFFF;
+  --card-border:  #DDE3EC;
+  --text-primary: #1E293B;
+  --text-muted:   #64748B;
+  --accent:       #1E40AF;
 }
 
 .dark {
-  --bg-primary: #080d1a;
-  --bg-secondary: #0f172a;
-  --sidebar-bg: #0a1020;
-  --card-bg: rgba(255, 255, 255, 0.035);
-  --card-border: rgba(99, 102, 241, 0.18);
-  --text-primary: #f1f5f9;
-  --text-muted: #94a3b8;
-  --gradient-a: #6366f1;
-  --gradient-b: #60a5fa;
-  --gradient-c: #a78bfa;
+  --bg-primary:   #0F172A;
+  --bg-secondary: #1E293B;
+  --sidebar-bg:   #060E20;
+  --card-bg:      #1E293B;
+  --card-border:  #2D3F55;
+  --text-primary: #F1F5F9;
+  --text-muted:   #94A3B8;
+  --accent:       #60A5FA;
 }
 
-/* ─── Reset & Base ───────────────────────────────────────────────────────── */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
+/* ─── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   background-color: var(--bg-primary);
@@ -46,107 +35,108 @@ body {
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease;
 }
 
-/* ─── Glassmorphism Utility ──────────────────────────────────────────────── */
-.glass-card {
+/* ─── Enterprise Card ────────────────────────────────────────────────────── */
+/* Both .glass-card and .enterprise-card resolve to the same clean card.     */
+/* This overrides the old glassmorphism everywhere it was used.              */
+.glass-card,
+.enterprise-card {
   background: var(--card-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--card-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* ─── Gradient Utilities ─────────────────────────────────────────────────── */
-.gradient-text {
-  background: linear-gradient(135deg, var(--gradient-a), var(--gradient-b));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
+/* ─── Animated Gradient → Solid Primary Button Color ────────────────────── */
+/* Replaces the animated gradient on buttons, logos, and highlights.         */
 .animated-gradient {
-  background: linear-gradient(135deg, var(--gradient-a) 0%, var(--gradient-b) 50%, var(--gradient-c) 100%);
-  background-size: 200% 200%;
-  animation: gradientShift 8s ease infinite;
+  background-color: #1E3A8A;
+  background-image: none;
+  animation: none;
 }
 
-@keyframes gradientShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* ─── Gradient Text → Flat Accent ───────────────────────────────────────── */
+.gradient-text {
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: unset;
+  color: var(--accent);
 }
 
-/* ─── Hover Effects ──────────────────────────────────────────────────────── */
+/* ─── Hover Lift → Subtle Elevation ─────────────────────────────────────── */
 .hover-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.15s ease;
 }
 .hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.09);
 }
 
-/* ─── Security Mode Pulse Animations ────────────────────────────────────── */
-@keyframes securePulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-  50%       { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+/* ─── Sidebar Active Link ────────────────────────────────────────────────── */
+/* Overrides the old indigo gradient for the dark navy sidebar.              */
+.nav-active {
+  background-color: rgba(255, 255, 255, 0.10);
+  color: #FFFFFF !important;
+  border-left: 2px solid #60A5FA;
+  padding-left: calc(0.75rem - 2px);
+  box-shadow: none;
 }
-@keyframes vulnerablePulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-  50%       { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+
+/* ─── Security Pulse → Remove Neon Glow ─────────────────────────────────── */
+.secure-pulse     { animation: none; }
+.vulnerable-pulse { animation: none; }
+
+/* ─── Primary Button Utility ─────────────────────────────────────────────── */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2
+         bg-[#1E3A8A] hover:bg-[#1E40AF] active:bg-[#1D3480]
+         text-white font-semibold rounded-md px-4 py-2.5 text-sm
+         transition-colors duration-150 shadow-sm
+         disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
-.secure-pulse      { animation: securePulse 2.5s ease-in-out infinite; }
-.vulnerable-pulse  { animation: vulnerablePulse 1.8s ease-in-out infinite; }
-
-/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
-::-webkit-scrollbar           { width: 5px; height: 5px; }
-::-webkit-scrollbar-track     { background: transparent; }
-::-webkit-scrollbar-thumb     { background: rgba(99, 102, 241, 0.35); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.6); }
-
-/* ─── Table ──────────────────────────────────────────────────────────────── */
-.data-table th {
-  font-weight: 600;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* ─── Input Field ────────────────────────────────────────────────────────── */
+.input-field {
+  @apply w-full px-3.5 py-2.5 rounded-md border
+         bg-white dark:bg-slate-800
+         text-slate-800 dark:text-slate-100 placeholder-slate-400
+         border-slate-300 dark:border-slate-600
+         focus:outline-none focus:ring-1 focus:ring-blue-700/60 focus:border-blue-700
+         transition-colors duration-150 text-sm;
 }
 
 /* ─── Status Badge ───────────────────────────────────────────────────────── */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.65rem;
-  border-radius: 99px;
-  font-size: 0.7rem;
+  gap: 0.3rem;
+  padding: 0.18rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: capitalize;
 }
 
-/* ─── Input Focus Ring ───────────────────────────────────────────────────── */
-.input-field {
-  @apply w-full px-4 py-3 rounded-xl border bg-white dark:bg-slate-800/50
-         text-slate-800 dark:text-white placeholder-slate-400
-         border-slate-200 dark:border-slate-700/60
-         focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500
-         transition-all duration-200;
+/* ─── Table Headers ──────────────────────────────────────────────────────── */
+.data-table th {
+  font-weight: 600;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-/* ─── Sidebar Active Link ────────────────────────────────────────────────── */
-.nav-active {
-  background: linear-gradient(135deg, #4f46e5, #3b82f6);
-  color: #ffffff;
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35);
-}
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar           { width: 4px; height: 4px; }
+::-webkit-scrollbar-track     { background: transparent; }
+::-webkit-scrollbar-thumb     { background: rgba(100, 116, 139, 0.22); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.45); }
 
 /* ─── Page Fade-in ───────────────────────────────────────────────────────── */
 .page-enter {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.2s ease-out;
 }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
