@@ -14,6 +14,10 @@ import { test, expect, type Page } from '@playwright/test'
 
 const API_BASE = process.env.PLAYWRIGHT_API_URL ?? 'http://localhost:8080'
 
+// Saved auth state produced by global-setup.ts (login once, reuse everywhere).
+// Credentials: budi_santoso / Admin@Dana2025!  (admin role → /dashboard)
+const AUTH_STATE = './e2e/.auth/admin.json'
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function getCurrentModeAPI(page: Page): Promise<string> {
@@ -30,6 +34,18 @@ async function setModeViaAPI(page: Page, mode: 'secure' | 'vulnerable') {
 
 async function resetToSecure(page: Page) {
   await setModeViaAPI(page, 'secure')
+}
+
+/** Click a mode-toggle button and wait for the backend PUT to complete. */
+async function clickToggleAndWait(page: Page, buttonLabel: RegExp) {
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/system/mode') &&
+        r.request().method() === 'PUT',
+    ),
+    page.getByRole('button', { name: buttonLabel }).click(),
+  ])
 }
 
 // ── Banner visibility ─────────────────────────────────────────────────────────
@@ -69,9 +85,18 @@ test.describe('GlobalModeSwitcher banner', () => {
     await setModeViaAPI(page, 'vulnerable')
     await page.goto('/')
     const banner = page.getByRole('banner')
+    // Poll until the computed background colour reaches the target red value.
+    // This waits through both the React state update and the 300ms CSS transition.
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('[role="banner"]')
+        return !!el && /rgb\(185/.test(getComputedStyle(el).backgroundColor)
+      },
+      { timeout: 5000 },
+    )
     const bg = await banner.evaluate((el) => getComputedStyle(el).backgroundColor)
-    // Tailwind red-700 = approximately rgb(185, 28, 28)
-    expect(bg).toMatch(/rgb\(185,\s*28,\s*28\)/)
+    // Tailwind red-700 ≈ rgb(185, 28, 28) — tolerate minor browser variance
+    expect(bg).toMatch(/rgb\(185.*28.*28/)
   })
 })
 
@@ -90,8 +115,8 @@ test.describe('Mode toggle — login page (no auth required)', () => {
 
   test('clicking toggle switches to vulnerable without page reload', async ({ page }) => {
     const navigationPromise = page.waitForNavigation({ timeout: 2000 }).catch(() => null)
-    const toggleBtn = page.getByRole('button', { name: /Switch to Vulnerable/i })
-    await toggleBtn.click()
+
+    await clickToggleAndWait(page, /Switch to Vulnerable/i)
 
     // Wait for banner to update
     await expect(page.getByRole('banner')).toContainText(/VULNERABLE/i, { timeout: 5000 })
@@ -101,8 +126,7 @@ test.describe('Mode toggle — login page (no auth required)', () => {
   })
 
   test('mode switch from login page persists to backend', async ({ page }) => {
-    const toggleBtn = page.getByRole('button', { name: /Switch to Vulnerable/i })
-    await toggleBtn.click()
+    await clickToggleAndWait(page, /Switch to Vulnerable/i)
     await expect(page.getByRole('banner')).toContainText(/VULNERABLE/i, { timeout: 5000 })
 
     // Verify backend reflects the change
@@ -119,8 +143,7 @@ test.describe('Mode toggle — login page (no auth required)', () => {
     await expect(page.getByRole('banner')).toContainText(/VULNERABLE/i)
 
     // Now switch back to secure via toggle
-    const toggleBtn = page.getByRole('button', { name: /Switch to Secure/i })
-    await toggleBtn.click()
+    await clickToggleAndWait(page, /Switch to Secure/i)
     await expect(page.getByRole('banner')).toContainText(/SECURE MODE/i, { timeout: 5000 })
   })
 })
@@ -128,15 +151,14 @@ test.describe('Mode toggle — login page (no auth required)', () => {
 // ── Mode toggle — dashboard (post-auth) ──────────────────────────────────────
 
 test.describe('Mode toggle — dashboard (authenticated)', () => {
+  // Reuse the auth state captured in global-setup to avoid repeated UI logins
+  // and stay within the backend's login rate limit (5 req / 60 s).
+  test.use({ storageState: AUTH_STATE })
+
   test.beforeEach(async ({ page }) => {
     await resetToSecure(page)
-
-    // Login with test admin credentials
-    await page.goto('/login')
-    await page.fill('[placeholder="Masukkan username"]', 'admin')
-    await page.fill('[placeholder="Masukkan password"]', 'Admin@123')
-    await page.click('button[type=submit]')
-    await page.waitForURL('**/dashboard', { timeout: 10000 })
+    await page.goto('/dashboard')
+    await page.waitForLoadState('networkidle')
   })
 
   test.afterEach(async ({ page }) => {
@@ -144,19 +166,20 @@ test.describe('Mode toggle — dashboard (authenticated)', () => {
   })
 
   test('mode indicator in sidebar reflects current mode', async ({ page }) => {
-    // Sidebar footer chip shows current mode
-    await expect(page.getByText(/Secure Mode/i).last()).toBeVisible()
+    // Sidebar footer chip shows current mode.
+    // Use .first() because the banner also contains "SECURE MODE" text (hidden mobile span
+    // appears last in DOM); .first() reliably selects the visible sidebar chip.
+    await expect(page.getByText(/Secure Mode/i).first()).toBeVisible()
   })
 
   test('mode switch updates sidebar chip without reload', async ({ page }) => {
-    const bannerBtn = page.getByRole('button', { name: /Switch to Vulnerable/i })
-    await bannerBtn.click()
-    await expect(page.getByText(/Vulnerable Mode/i).last()).toBeVisible({ timeout: 5000 })
+    await clickToggleAndWait(page, /Switch to Vulnerable/i)
+    await expect(page.getByText(/Vulnerable Mode/i).first()).toBeVisible({ timeout: 5000 })
   })
 
   test('dashboard page reflects mode change without reload', async ({ page }) => {
     // Check the banner changes
-    await page.getByRole('button', { name: /Switch to Vulnerable/i }).click()
+    await clickToggleAndWait(page, /Switch to Vulnerable/i)
     await expect(page.getByRole('banner')).toContainText(/VULNERABLE/i, { timeout: 5000 })
 
     // ModeBadge in nav should update too
@@ -165,7 +188,7 @@ test.describe('Mode toggle — dashboard (authenticated)', () => {
 
   test('multiple rapid mode switches stabilize correctly', async ({ page }) => {
     for (let i = 0; i < 3; i++) {
-      await page.getByRole('button', { name: /Switch to (Vulnerable|Secure)/i }).click()
+      await clickToggleAndWait(page, /Switch to (Vulnerable|Secure)/i)
       await page.waitForTimeout(500) // small debounce for rapid test clicks
     }
     // After odd number of switches from secure, should be vulnerable
@@ -206,13 +229,13 @@ test.describe('GlobalModeSwitcher — accessibility', () => {
 // ── ModeBadge in navbar ───────────────────────────────────────────────────────
 
 test.describe('ModeBadge in Navbar (authenticated)', () => {
+  // Reuse the same saved auth state — no extra UI logins needed.
+  test.use({ storageState: AUTH_STATE })
+
   test.beforeEach(async ({ page }) => {
     await resetToSecure(page)
-    await page.goto('/login')
-    await page.fill('[placeholder="Masukkan username"]', 'admin')
-    await page.fill('[placeholder="Masukkan password"]', 'Admin@123')
-    await page.click('button[type=submit]')
-    await page.waitForURL('**/dashboard', { timeout: 10000 })
+    await page.goto('/dashboard')
+    await page.waitForLoadState('networkidle')
   })
 
   test.afterEach(async ({ page }) => {
@@ -224,7 +247,7 @@ test.describe('ModeBadge in Navbar (authenticated)', () => {
   })
 
   test('ModeBadge updates to "Vulnerable" after mode switch', async ({ page }) => {
-    await page.getByRole('button', { name: /Switch to Vulnerable/i }).click()
+    await clickToggleAndWait(page, /Switch to Vulnerable/i)
     await expect(page.getByText('Vulnerable').first()).toBeVisible({ timeout: 5000 })
   })
 })

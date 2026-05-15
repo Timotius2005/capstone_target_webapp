@@ -39,14 +39,14 @@ func (s *transactionService) Create(
 	requestingUserID uuid.UUID,
 	role string,
 ) (*models.TransactionResponse, error) {
-	if security.IsSecure() {
-		// Only admin/staff can record transactions
+	// A07 Secure: only admin/staff can record transactions.
+	if security.IsSecureFor(security.CategoryA07) {
 		if role == models.RoleNasabah {
 			return nil, repository.ErrForbidden
 		}
 	}
-	// TODO: Vulnerability Injection Point — OWASP API5 (Broken Function Level Authorization)
-	// Vulnerable: any authenticated user can create transactions
+	// TODO: Vulnerability Injection Point — OWASP API5 / A07 (Authentication Failures / BFLA)
+	// A07 enabled: any authenticated user can create transactions.
 
 	loanID, err := uuid.Parse(req.LoanID)
 	if err != nil {
@@ -59,7 +59,8 @@ func (s *transactionService) Create(
 		return nil, fmt.Errorf("loan not found: %w", err)
 	}
 
-	if security.IsSecure() {
+	// A06 Secure: enforce business-flow state machine on disbursement/repayment.
+	if security.IsSecureFor(security.CategoryA06) {
 		// Business rule: can only disburse approved loans
 		if req.TransactionType == models.TxDisbursement && loan.Status != models.LoanStatusApproved {
 			return nil, errors.New("can only disburse approved loans")
@@ -69,8 +70,8 @@ func (s *transactionService) Create(
 			return nil, errors.New("loan is not in active status")
 		}
 	}
-	// TODO: Vulnerability Injection Point — OWASP API6 (Unrestricted Access to Sensitive Business Flows)
-	// Vulnerable: no business flow validation
+	// TODO: Vulnerability Injection Point — OWASP API6 / A06 (Vulnerable Components / Business Flow)
+	// A06 enabled: no business flow validation — disburse or repay any loan in any state.
 
 	tx := &models.Transaction{
 		ID:              uuid.New(),
@@ -110,8 +111,8 @@ func (s *transactionService) ListByLoan(
 		return nil, err
 	}
 
-	if security.IsSecure() && role == models.RoleNasabah {
-		// OWASP API1 Secure: verify nasabah owns this loan
+	// A01 Secure: verify nasabah owns this loan before listing its transactions.
+	if security.IsSecureFor(security.CategoryA01) && role == models.RoleNasabah {
 		nasabah, err := s.nasabahRepo.FindByUserID(requestingUserID)
 		if err != nil || nasabah.ID != loan.NasabahID {
 			s.log.Warn("BOLA attempt on transactions",
@@ -121,6 +122,8 @@ func (s *transactionService) ListByLoan(
 			return nil, repository.ErrNotFound
 		}
 	}
+	// TODO: Vulnerability Injection Point — OWASP API1 / A01 (BOLA)
+	// A01 enabled: any authenticated user can list transactions of any loan.
 
 	if limit < 1 || limit > maxSecureLimit {
 		limit = defaultLimit

@@ -182,7 +182,7 @@ func TestAPI1_BOLA_Admin_Always_Allowed(t *testing.T) {
 	nasabah := helpers.MakeTestNasabah(ownerID)
 	app.nasabahRepo.FindByIDFunc = func(_ uuid.UUID) (*models.Nasabah, error) { return nasabah, nil }
 
-	adminToken := helpers.MakeTestToken(adminID.String(), "admin", models.RoleAdmin)
+	adminToken := helpers.MakeTestToken(adminID.String(), "budi_santoso", models.RoleAdmin)
 	w := do(app, helpers.NewJSONRequest("GET", "/api/v1/nasabah/"+nasabah.ID.String(), nil, adminToken))
 	assert.Equal(t, http.StatusOK, w.Code, "admin must be able to access any nasabah in secure mode")
 }
@@ -322,7 +322,7 @@ func TestAPI4_ResourceConsumption_SecureMode_List_Is_Paginated(t *testing.T) {
 		return bigList[:end], int64(len(bigList)), nil
 	}
 
-	adminToken := helpers.MakeTestToken(uuid.New().String(), "admin", models.RoleAdmin)
+	adminToken := helpers.MakeTestToken(uuid.New().String(), "budi_santoso", models.RoleAdmin)
 	w := do(app, helpers.NewJSONRequest("GET", "/api/v1/nasabah?page=1&limit=1000", nil, adminToken))
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -344,7 +344,7 @@ func TestAPI4_ResourceConsumption_VulnerableMode_Returns_All(t *testing.T) {
 	}
 	app.nasabahRepo.ListAllFunc = func() ([]models.Nasabah, error) { return bigList, nil }
 
-	adminToken := helpers.MakeTestToken(uuid.New().String(), "admin", models.RoleAdmin)
+	adminToken := helpers.MakeTestToken(uuid.New().String(), "budi_santoso", models.RoleAdmin)
 	w := do(app, helpers.NewJSONRequest("GET", "/api/v1/nasabah", nil, adminToken))
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -360,7 +360,7 @@ func TestAPI4_ResourceConsumption_VulnerableMode_Returns_All(t *testing.T) {
 func TestAPI5_BFLA_SecureMode_Staff_Cannot_Access_Admin_Routes(t *testing.T) {
 	security.SetMode(security.ModeSecure)
 	app := newTestApp()
-	staffToken := helpers.MakeTestToken(uuid.New().String(), "staff01", models.RoleStaff)
+	staffToken := helpers.MakeTestToken(uuid.New().String(), "dewi_rahayu", models.RoleStaff)
 	w := do(app, helpers.NewJSONRequest("GET", "/api/v1/admin/users", nil, staffToken))
 	assert.Equal(t, http.StatusForbidden, w.Code,
 		"OWASP API5 Secure: staff must be denied /admin/users (403)")
@@ -374,7 +374,7 @@ func TestAPI5_BFLA_VulnerableMode_Staff_Reaches_Admin_Routes(t *testing.T) {
 
 	app.userRepo.ListAllFunc = func(_, _ int) ([]models.User, int64, error) { return nil, 0, nil }
 
-	staffToken := helpers.MakeTestToken(uuid.New().String(), "staff01", models.RoleStaff)
+	staffToken := helpers.MakeTestToken(uuid.New().String(), "dewi_rahayu", models.RoleStaff)
 	w := do(app, helpers.NewJSONRequest("GET", "/api/v1/admin/users", nil, staffToken))
 	assert.Equal(t, http.StatusOK, w.Code,
 		"OWASP API5 Vulnerable: staff must reach /admin/users (BFLA injection point)")
@@ -446,7 +446,7 @@ func TestAPI7_SSRF_SecureMode_Blocks_Internal_URLs(t *testing.T) {
 	// Secure: internal/localhost URLs are blocked
 	security.SetMode(security.ModeSecure)
 	app := newTestApp()
-	adminToken := helpers.MakeTestToken(uuid.New().String(), "admin", models.RoleAdmin)
+	adminToken := helpers.MakeTestToken(uuid.New().String(), "budi_santoso", models.RoleAdmin)
 
 	for _, internalURL := range []string{
 		"http://localhost:5432",
@@ -468,7 +468,7 @@ func TestAPI7_SSRF_VulnerableMode_Allows_Any_URL(t *testing.T) {
 	security.SetMode(security.ModeSandbox)
 	defer security.SetMode(security.ModeSecure)
 	app := newTestApp()
-	adminToken := helpers.MakeTestToken(uuid.New().String(), "admin", models.RoleAdmin)
+	adminToken := helpers.MakeTestToken(uuid.New().String(), "budi_santoso", models.RoleAdmin)
 
 	// In vulnerable mode, localhost URL is attempted (will fail TCP but not be blocked)
 	w := do(app, helpers.NewJSONRequest("POST", "/api/v1/internal/fetch",
@@ -553,7 +553,7 @@ func TestAPI9_DeprecatedV0_SecureMode_Not_Registered(t *testing.T) {
 		v0.GET("/debug", adminH.Debug)
 	}
 
-	adminToken := helpers.MakeTestToken(uuid.New().String(), "admin", models.RoleAdmin)
+	adminToken := helpers.MakeTestToken(uuid.New().String(), "budi_santoso", models.RoleAdmin)
 
 	for _, path := range []string{"/api/v0/loans", "/api/v0/users", "/api/v0/debug"} {
 		w := helpers.DoRequest(r, helpers.NewJSONRequest("GET", path, nil, adminToken))
@@ -683,7 +683,7 @@ func TestOWASP_ModeMatrix(t *testing.T) {
 
 	// API5 BFLA: staff accessing admin route
 	t.Run("API5_BFLA", func(t *testing.T) {
-		staffToken := helpers.MakeTestToken(uuid.New().String(), "staff", models.RoleStaff)
+		staffToken := helpers.MakeTestToken(uuid.New().String(), "dewi_rahayu", models.RoleStaff)
 		var res result
 
 		security.SetMode(security.ModeSecure)

@@ -119,15 +119,15 @@ func (s *authService) Login(req LoginRequest) (interface{}, error) {
 		return nil, errors.New("invalid credentials")
 	}
 
-	if security.IsVulnerable() {
-		// TODO: Vulnerability Injection Point — OWASP API2 (Broken Authentication)
-		// Plain-text string comparison — no bcrypt, vulnerable to timing attacks.
-		// JWT has no expiry (100-year token).
+	if security.IsVulnerableFor(security.CategoryA07) {
+		// TODO: Vulnerability Injection Point — OWASP API2 / A07 (Authentication Failures)
+		// A07 enabled: plain-text string comparison — no bcrypt, vulnerable to timing attacks.
+		// JWT has no expiry (100-year token). Verbose error reveals username existence.
 		if user.PasswordHash != req.Password {
 			s.log.Warn("[VULNERABLE] Login failed — plain-text compare",
 				zap.String("username", req.Username),
 			)
-			// TODO: Vulnerability Injection Point — OWASP API2
+			// TODO: Vulnerability Injection Point — OWASP API2 / A07
 			// Detailed error message reveals whether username exists.
 			return nil, fmt.Errorf("invalid credentials: password mismatch for user '%s'", req.Username)
 		}

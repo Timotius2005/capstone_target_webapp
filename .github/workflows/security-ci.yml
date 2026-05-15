@@ -1,0 +1,658 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PT. Dana Sejahtera — Security CI
+#
+# Four jobs:
+#   backend-tests  → Go unit + OWASP API1-10 tests, coverage
+#   frontend-tests → Jest/RTL unit tests, Next.js production build
+#   e2e            → PostgreSQL service, both servers, Playwright (Chromium)
+#   report         → Consolidated job-summary (always runs)
+#
+# Secrets expected (all optional — defaults shown):
+#   TEST_ADMIN_USERNAME   budi_santoso
+#   TEST_ADMIN_PASSWORD   Admin@Dana2025!
+#   TEST_STAFF_USERNAME   dewi_rahayu
+#   TEST_STAFF_PASSWORD   Staff@Dana2025!
+#   JWT_SECRET            ci-jwt-secret-for-testing-min-32-chars!!
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Security CI — PT. Dana Sejahtera
+
+on:
+  push:
+  pull_request:
+
+env:
+  GO_VERSION: "1.23"
+  NODE_VERSION: "22"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 1 — Backend: unit tests + OWASP coverage
+# No database needed; all tests use mock repositories.
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  backend-tests:
+    name: "🔧 Backend — Unit + OWASP Tests"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    outputs:
+      coverage: ${{ steps.cov.outputs.pct }}
+      passed:   ${{ steps.counts.outputs.passed }}
+      failed:   ${{ steps.counts.outputs.failed }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Go toolchain ────────────────────────────────────────────────
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: Install gotestsum (JUnit XML reporter)
+        run: go install gotest.tools/gotestsum@latest
+
+      - name: Download Go modules
+        run: go mod download
+
+      # ── Run tests ───────────────────────────────────────────────────
+      - name: Create reports directory
+        run: mkdir -p ../reports
+
+      - name: Run tests with coverage
+        run: |
+          gotestsum \
+            --junitfile ../reports/backend-junit.xml \
+            --jsonfile  /tmp/backend-results.json    \
+            --format    pkgname                      \
+            -- ./tests/...                           \
+              -coverpkg=./internal/...               \
+              -coverprofile=../reports/coverage-backend.out \
+              -covermode=atomic                      \
+              -count=1
+
+      # ── Coverage reporting ──────────────────────────────────────────
+      - name: Generate HTML coverage report
+        run: |
+          go tool cover \
+            -html=../reports/coverage-backend.out \
+            -o    ../reports/coverage-backend.html
+
+      - name: Extract total coverage %
+        id: cov
+        run: |
+          PCT=$(go tool cover -func=../reports/coverage-backend.out \
+                | awk '/^total:/{print $3}')
+          echo "pct=${PCT}" >> "$GITHUB_OUTPUT"
+          echo "Backend coverage: ${PCT}"
+
+      # ── Pass/fail counts from JSON output ───────────────────────────
+      - name: Extract pass / fail counts
+        id: counts
+        run: |
+          python3 - <<'PY'
+          import json, os
+
+          results = []
+          with open('/tmp/backend-results.json') as f:
+              for line in f:
+                  line = line.strip()
+                  if line:
+                      results.append(json.loads(line))
+
+          passed = sum(1 for r in results if r.get('Action') == 'pass' and r.get('Test'))
+          failed = sum(1 for r in results if r.get('Action') == 'fail' and r.get('Test'))
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'passed={passed}\n')
+              out.write(f'failed={failed}\n')
+
+          print(f'Tests passed: {passed}  failed: {failed}')
+          PY
+
+      # ── Per-job step summary ────────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## 🔧 Backend Tests" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Passed   | ${{ steps.counts.outputs.passed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ❌ Failed   | ${{ steps.counts.outputs.failed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 📊 Coverage | ${{ steps.cov.outputs.pct }} |"       >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Packages: \`tests/unit\` (auth, middleware, mode) · \`tests/owasp\` (API1–10)" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Artifacts ───────────────────────────────────────────────────
+      - name: Upload backend reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-reports
+          retention-days: 30
+          path: |
+            reports/coverage-backend.html
+            reports/coverage-backend.out
+            reports/backend-junit.xml
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 2 — Frontend: Jest unit tests + Next.js production build
+# ─────────────────────────────────────────────────────────────────────────────
+  frontend-tests:
+    name: "🎨 Frontend — Unit Tests & Build"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    outputs:
+      coverage: ${{ steps.cov.outputs.pct }}
+      passed:   ${{ steps.counts.outputs.passed }}
+      failed:   ${{ steps.counts.outputs.failed }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Node toolchain ──────────────────────────────────────────────
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Unit tests with coverage ────────────────────────────────────
+      - name: Run unit tests with coverage
+        run: |
+          npm run test:coverage -- \
+            --forceExit             \
+            --json                  \
+            --outputFile=/tmp/jest-results.json
+        env:
+          CI: true
+
+      # ── Extract metrics ─────────────────────────────────────────────
+      - name: Extract line coverage %
+        id: cov
+        run: |
+          python3 - <<'PY'
+          import os, re
+
+          lcov_path = '../reports/frontend-coverage/lcov.info'
+          if not os.path.exists(lcov_path):
+              pct = 'N/A'
+          else:
+              lh = lf = 0
+              for line in open(lcov_path):
+                  if line.startswith('LH:'):
+                      lh += int(line.split(':')[1])
+                  elif line.startswith('LF:'):
+                      lf += int(line.split(':')[1])
+              pct = f'{lh / lf * 100:.1f}%' if lf else 'N/A'
+
+          print(f'Frontend line coverage: {pct}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'pct={pct}\n')
+          PY
+
+      - name: Extract pass / fail counts
+        id: counts
+        run: |
+          python3 - <<'PY'
+          import json, os
+
+          with open('/tmp/jest-results.json') as f:
+              data = json.load(f)
+
+          passed = data.get('numPassedTests', 0)
+          failed = data.get('numFailedTests', 0)
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'passed={passed}\n')
+              out.write(f'failed={failed}\n')
+
+          print(f'Tests passed: {passed}  failed: {failed}')
+          PY
+
+      # ── Production build ────────────────────────────────────────────
+      - name: Build frontend (production)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL:      http://localhost:8080
+          NEXT_PUBLIC_SECURITY_MODE: secure
+          NEXT_TELEMETRY_DISABLED:  1
+
+      # ── Per-job step summary ────────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## 🎨 Frontend Tests" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Passed   | ${{ steps.counts.outputs.passed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ❌ Failed   | ${{ steps.counts.outputs.failed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 📊 Coverage | ${{ steps.cov.outputs.pct }} |"       >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Suites: GlobalModeSwitcher · ModeBadge · ModeContext" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Artifacts ───────────────────────────────────────────────────
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-reports
+          retention-days: 30
+          path: reports/frontend-coverage/
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 3 — E2E: PostgreSQL + backend + frontend + Playwright (Chromium)
+# Runs only after both unit-test jobs pass.
+# ─────────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: "🎭 E2E — Playwright / Chromium"
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+
+    # ── PostgreSQL service container ──────────────────────────────────
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB:       nasabahdb
+          POSTGRES_USER:     postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd     pg_isready
+          --health-interval 10s
+          --health-timeout  5s
+          --health-retries  5
+
+    # ── Environment ───────────────────────────────────────────────────
+    env:
+      # Backend
+      PORT:               8080
+      DB_HOST:            localhost
+      DB_PORT:            5432
+      DB_USER:            postgres
+      DB_PASSWORD:        postgres
+      DB_NAME:            nasabahdb
+      DB_SSLMODE:         disable
+      JWT_SECRET:         ${{ secrets.JWT_SECRET || 'ci-jwt-secret-for-testing-min-32-chars!!' }}
+      APP_SECURITY_MODE:  secure
+      ENVIRONMENT:        test
+      # Frontend build (NEXT_PUBLIC_* baked at build time)
+      NEXT_PUBLIC_API_URL:       http://localhost:8080
+      NEXT_PUBLIC_SECURITY_MODE: secure
+      NEXT_TELEMETRY_DISABLED:   1
+      # Playwright
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      PLAYWRIGHT_API_URL:  http://localhost:8080
+      # Test credentials (override via repo secrets for custom environments)
+      TEST_ADMIN_USERNAME: ${{ secrets.TEST_ADMIN_USERNAME || 'budi_santoso' }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD || 'Admin@Dana2025!' }}
+      TEST_STAFF_USERNAME: ${{ secrets.TEST_STAFF_USERNAME || 'dewi_rahayu' }}
+      TEST_STAFF_PASSWORD: ${{ secrets.TEST_STAFF_PASSWORD || 'Staff@Dana2025!' }}
+
+    outputs:
+      passed:      ${{ steps.e2e-counts.outputs.passed }}
+      failed:      ${{ steps.e2e-counts.outputs.failed }}
+      total:       ${{ steps.e2e-counts.outputs.total }}
+      owasp_status: ${{ steps.owasp.outputs.status }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Toolchains ─────────────────────────────────────────────────
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ── Database migrations ─────────────────────────────────────────
+      - name: Apply migrations (ordered)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in $(ls backend/migrations/*.up.sql | sort); do
+            echo "→ Applying: $f"
+            psql -h localhost -U postgres -d nasabahdb -f "$f"
+          done
+
+      # ── Build & start backend ───────────────────────────────────────
+      - name: Download Go modules
+        working-directory: backend
+        run: go mod download
+
+      - name: Build backend binary
+        working-directory: backend
+        run: |
+          mkdir -p ./bin
+          go build -o ./bin/server ./cmd/main.go
+
+      - name: Start backend server
+        working-directory: backend
+        run: ./bin/server >> /tmp/backend.log 2>&1 &
+
+      - name: Wait for backend (/health)
+        run: |
+          echo "Waiting for backend at http://localhost:8080/health …"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✓ Backend ready (attempt ${i})"
+              break
+            fi
+            if [ "${i}" -eq 30 ]; then
+              echo "✗ Backend did not start in time"
+              echo "=== backend log ==="
+              cat /tmp/backend.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+      # ── OWASP secure-mode smoke tests ───────────────────────────────
+      # Fail the workflow if any protection is missing before E2E begins.
+      - name: OWASP secure-mode verification
+        id: owasp
+        run: |
+          FAIL=0
+          echo "====== OWASP Smoke Tests ======"
+
+          # [API8] Runtime mode must be 'secure'
+          MODE=$(curl -sf http://localhost:8080/api/system/mode \
+                 | python3 -c "import sys,json; print(json.load(sys.stdin).get('mode','?'))" 2>/dev/null)
+          if [ "$MODE" = "secure" ]; then
+            echo "PASS [API8] mode=secure confirmed"
+          else
+            echo "FAIL [API8] expected mode=secure, got mode=$MODE"
+            FAIL=1
+          fi
+
+          # [API2] Unauthenticated /auth/me → 401 (broken auth protection)
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/auth/me)
+          if [ "$CODE" = "401" ]; then
+            echo "PASS [API2] /auth/me → 401 (unauthenticated blocked)"
+          else
+            echo "FAIL [API2] /auth/me returned $CODE (expected 401)"
+            FAIL=1
+          fi
+
+          # [API5] Admin route without auth → 401 (BFLA protection active)
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/admin/users)
+          if [ "$CODE" = "401" ]; then
+            echo "PASS [API5] /admin/users → 401 (unauthenticated blocked)"
+          else
+            echo "FAIL [API5] /admin/users returned $CODE (expected 401)"
+            FAIL=1
+          fi
+
+          # [API9] Deprecated /api/v0/debug must NOT be 200 in secure mode
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v0/debug)
+          if [ "$CODE" != "200" ]; then
+            echo "PASS [API9] /api/v0/debug → $CODE (not exposed in secure mode)"
+          else
+            echo "FAIL [API9] /api/v0/debug is reachable (200) in secure mode"
+            FAIL=1
+          fi
+
+          # [API2/API4] Login rate-limit header present after request
+          HDRS=$(curl -sI -X POST http://localhost:8080/api/v1/auth/login \
+                 -H "Content-Type: application/json" \
+                 -d '{"username":"probe","password":"probe"}')
+          if echo "$HDRS" | grep -qi "retry-after\|x-ratelimit\|429"; then
+            echo "PASS [API4] rate-limit signalled on login endpoint"
+          else
+            echo "INFO [API4] no rate-limit header yet (within allowed window)"
+          fi
+
+          echo "================================"
+
+          if [ "$FAIL" -eq 0 ]; then
+            echo "status=✅ Passed (4/4 checks)" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=❌ Failed — secure-mode violation detected" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      # ── Build & start frontend ──────────────────────────────────────
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (production)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Start frontend server
+        working-directory: frontend
+        # PORT=3000 inline to avoid conflict with backend's PORT=8080 env var.
+        run: PORT=3000 npm start >> /tmp/frontend.log 2>&1 &
+
+      - name: Wait for frontend (port 3000)
+        run: |
+          echo "Waiting for frontend at http://localhost:3000 …"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+              echo "✓ Frontend ready (attempt ${i})"
+              break
+            fi
+            if [ "${i}" -eq 30 ]; then
+              echo "✗ Frontend did not start in time"
+              echo "=== frontend log ==="
+              cat /tmp/frontend.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+      # ── Playwright ─────────────────────────────────────────────────
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Playwright + system deps
+        working-directory: frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Run E2E tests
+        id: e2e-run
+        working-directory: frontend
+        run: npx playwright test
+        # CI=true activates the JUnit reporter defined in playwright.config.ts
+        env:
+          CI: true
+
+      # ── Parse results ───────────────────────────────────────────────
+      - name: Extract E2E pass / fail counts
+        id: e2e-counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+
+          results_path = 'reports/playwright-results.json'
+          if not os.path.exists(results_path):
+              passed = failed = total = 0
+          else:
+              with open(results_path) as f:
+                  data = json.load(f)
+              stats  = data.get('stats', {})
+              passed = stats.get('expected',   0)
+              failed = stats.get('unexpected', 0)
+              total  = passed + failed + stats.get('skipped', 0)
+
+          print(f'E2E  passed={passed}  failed={failed}  total={total}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'passed={passed}\nfailed={failed}\ntotal={total}\n')
+          PY
+
+      # ── Per-job step summary ────────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## 🎭 E2E Tests (Playwright / Chromium)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Passed   | ${{ steps.e2e-counts.outputs.passed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ❌ Failed   | ${{ steps.e2e-counts.outputs.failed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 📋 Total    | ${{ steps.e2e-counts.outputs.total }} |"  >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🔒 OWASP    | ${{ steps.owasp.outputs.status }} |"     >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Admin login (\`budi_santoso\`) → \`/dashboard\` · 1 worker · Chromium" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Dump server logs only on failure ────────────────────────────
+      - name: Dump server logs
+        if: failure()
+        run: |
+          echo "=== backend log ===" && cat /tmp/backend.log  || true
+          echo "=== frontend log ===" && cat /tmp/frontend.log || true
+
+      # ── Artifacts (always upload for post-mortem) ───────────────────
+      - name: Upload E2E reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reports
+          retention-days: 30
+          path: |
+            reports/playwright-report/
+            reports/playwright-results.json
+            reports/playwright-junit.xml
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JOB 4 — Report: consolidated job summary (always runs)
+# Aggregates metrics from the three test jobs and publishes a single
+# markdown summary visible on the Actions run page.
+# ─────────────────────────────────────────────────────────────────────────────
+  report:
+    name: "📋 Consolidated Report"
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, e2e]
+    if: always()
+
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      # ── Merged JUnit XML for external tools (e.g., test result parsers) ─
+      - name: Upload combined test-report XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-xml
+          retention-days: 30
+          path: |
+            artifacts/backend-reports/reports/backend-junit.xml
+            artifacts/e2e-reports/reports/playwright-junit.xml
+
+      # ── Write consolidated markdown summary ─────────────────────────
+      - name: Write consolidated job summary
+        env:
+          BACKEND_RESULT:  ${{ needs.backend-tests.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
+          E2E_RESULT:      ${{ needs.e2e.result }}
+          BACKEND_COV:     ${{ needs.backend-tests.outputs.coverage }}
+          FRONTEND_COV:    ${{ needs.frontend-tests.outputs.coverage }}
+          BACKEND_PASSED:  ${{ needs.backend-tests.outputs.passed }}
+          BACKEND_FAILED:  ${{ needs.backend-tests.outputs.failed }}
+          FRONTEND_PASSED: ${{ needs.frontend-tests.outputs.passed }}
+          FRONTEND_FAILED: ${{ needs.frontend-tests.outputs.failed }}
+          E2E_PASSED:      ${{ needs.e2e.outputs.passed }}
+          E2E_FAILED:      ${{ needs.e2e.outputs.failed }}
+          E2E_TOTAL:       ${{ needs.e2e.outputs.total }}
+          OWASP_STATUS:    ${{ needs.e2e.outputs.owasp_status }}
+        run: |
+          # ── helpers ───────────────────────────────────────────────────
+          icon() { [ "$1" = "success" ] && echo "✅" || echo "❌"; }
+
+          BACKEND_ICON=$(icon  "$BACKEND_RESULT")
+          FRONTEND_ICON=$(icon "$FRONTEND_RESULT")
+          E2E_ICON=$(icon      "$E2E_RESULT")
+
+          if [ "$BACKEND_RESULT" = "success" ] && \
+             [ "$FRONTEND_RESULT" = "success" ] && \
+             [ "$E2E_RESULT" = "success" ]; then
+            OVERALL="✅ ALL PASSED"
+          else
+            OVERALL="❌ FAILED"
+          fi
+
+          TOTAL_PASSED=$(( ${BACKEND_PASSED:-0} + ${FRONTEND_PASSED:-0} + ${E2E_PASSED:-0} ))
+          TOTAL_FAILED=$(( ${BACKEND_FAILED:-0} + ${FRONTEND_FAILED:-0} + ${E2E_FAILED:-0} ))
+
+          # ── write to step summary ─────────────────────────────────────
+          {
+            echo "# 🔒 PT. Dana Sejahtera — Security CI Report"
+            echo ""
+            echo "**Status:** ${OVERALL}"
+            echo "**Commit:** \`${GITHUB_SHA::8}\`  |  **Ref:** \`${GITHUB_REF_NAME}\`  |  **Run:** [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            echo ""
+            echo "---"
+            echo ""
+            echo "## Suite Results"
+            echo ""
+            echo "| Suite | Passed | Failed | Status |"
+            echo "|-------|--------|--------|--------|"
+            echo "| 🔧 Backend (unit + OWASP) | ${BACKEND_PASSED:-—}  | ${BACKEND_FAILED:-—}  | ${BACKEND_ICON}  |"
+            echo "| 🎨 Frontend (Jest/RTL)    | ${FRONTEND_PASSED:-—} | ${FRONTEND_FAILED:-—} | ${FRONTEND_ICON} |"
+            echo "| 🎭 E2E (Playwright)        | ${E2E_PASSED:-—}      | ${E2E_FAILED:-—}      | ${E2E_ICON}      |"
+            echo "| **Total**                 | **${TOTAL_PASSED}**   | **${TOTAL_FAILED}**   | **${OVERALL}**   |"
+            echo ""
+            echo "## Coverage"
+            echo ""
+            echo "| Layer | Coverage |"
+            echo "|-------|----------|"
+            echo "| 🔧 Backend \`./internal/...\`          | ${BACKEND_COV:-N/A}  |"
+            echo "| 🎨 Frontend (components + contexts) | ${FRONTEND_COV:-N/A} |"
+            echo ""
+            echo "## 🔒 OWASP API Security Top 10 — Secure-Mode Validation"
+            echo ""
+            echo "| Check | Category | Result |"
+            echo "|-------|----------|--------|"
+            echo "| Runtime mode = \`secure\`              | API8 — Security Misconfiguration | ${OWASP_STATUS:-N/A} |"
+            echo "| Unauthenticated /auth/me → 401       | API2 — Broken Authentication     | ${OWASP_STATUS:-N/A} |"
+            echo "| Unauthenticated /admin/users → 401   | API5 — BFLA                      | ${OWASP_STATUS:-N/A} |"
+            echo "| /api/v0/debug not exposed (≠ 200)    | API9 — Improper Inventory        | ${OWASP_STATUS:-N/A} |"
+            echo "| **Overall**                          |                                  | **${OWASP_STATUS:-N/A}** |"
+            echo ""
+            echo "## Artifacts"
+            echo ""
+            echo "| Artifact | Contents |"
+            echo "|----------|----------|"
+            echo "| \`backend-reports\`  | coverage-backend.html · coverage-backend.out · backend-junit.xml |"
+            echo "| \`frontend-reports\` | frontend-coverage/ (lcov + html) |"
+            echo "| \`e2e-reports\`      | playwright-report/ · playwright-results.json · playwright-junit.xml |"
+            echo "| \`test-report-xml\`  | backend-junit.xml · playwright-junit.xml (merged) |"
+          } >> "$GITHUB_STEP_SUMMARY"

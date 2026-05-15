@@ -29,9 +29,9 @@ const (
 // Returns a ready-to-use *gorm.DB or an error with debugging hints.
 func New(dsn string, log *zap.Logger) (*gorm.DB, error) {
 	gormLogLevel := logger.Silent
-	if security.IsVulnerable() {
-		// TODO: Vulnerability Injection Point — OWASP API8 (Security Misconfiguration)
-		// Debug mode logs raw SQL including sensitive query parameters
+	if security.IsVulnerableFor(security.CategoryA05) {
+		// TODO: Vulnerability Injection Point — OWASP API8 / A05 (Security Misconfiguration)
+		// A05 enabled: debug mode logs raw SQL including sensitive query parameters.
 		gormLogLevel = logger.Info
 	}
 

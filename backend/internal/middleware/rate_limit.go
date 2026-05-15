@@ -40,11 +40,12 @@ var ipStore = &sync.Map{}
 
 // RateLimit returns a middleware that limits requests per IP.
 // OWASP #4 Secure: unrestricted resource consumption protection.
+// OWASP A09 Vulnerable: no rate limiting — brute-force goes undetected.
 func RateLimit(maxReq, windowSec int, log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if security.IsVulnerable() {
-			// TODO: Vulnerability Injection Point — OWASP API #4 (Unrestricted Resource Consumption)
-			// No rate limiting in vulnerable mode
+		if security.IsVulnerableFor(security.CategoryA09) {
+			// TODO: Vulnerability Injection Point — OWASP API4 / A09 (Security Logging Failures)
+			// A09 enabled: rate limiting disabled — brute-force attacks undetected and unblocked.
 			c.Next()
 			return
 		}

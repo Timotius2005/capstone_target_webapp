@@ -1,54 +1,64 @@
-# Binaries for programs and plugins
+# ─── Go ──────────────────────────────────────────────────────────────────────
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
-
-# Dependency directories (uncomment if using go mod)
-# vendor/
-
-# Go workspace file
 go.work
+go.work.sum
 
-# Node.js
+# Compiled binaries (CI builds these at runtime)
+backend/bin/
+
+# ─── Node.js / Next.js ───────────────────────────────────────────────────────
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Next.js
 .next/
 out/
 
-# Environment variables
+# ─── Environment variables (NEVER commit real credentials) ───────────────────
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
+.env.development
+.env.production
+# Keep .env.local.example — it is a template, no secrets
+!frontend/.env.local.example
 
-# IDE
+# ─── Playwright ──────────────────────────────────────────────────────────────
+# Saved browser auth states contain live JWT tokens — never commit
+frontend/e2e/.auth/
+
+# E2E run artefacts
+frontend/playwright-report/
+frontend/test-results/
+
+# ─── CI / Test reports (generated; uploaded as workflow artefacts instead) ───
+# Allow the sentinel file that keeps the directory tracked in git
+reports/*
+!reports/.gitkeep
+
+# ─── IDE ─────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
+*.iml
 
-# OS
+# ─── OS ──────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Logs
-logs
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
 *.log
 
-# Database
+# ─── Database ────────────────────────────────────────────────────────────────
 *.db
 *.sqlite
 
-# Docker
+# ─── Docker ──────────────────────────────────────────────────────────────────
 .dockerignore

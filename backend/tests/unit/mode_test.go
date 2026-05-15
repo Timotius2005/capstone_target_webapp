@@ -21,6 +21,8 @@ func setupSystemRouter() *gin.Engine {
 	r := gin.New()
 	r.GET("/api/system/mode", systemH.GetMode)
 	r.PUT("/api/system/mode", systemH.SetMode)
+	r.GET("/api/system/vuln-config", systemH.GetVulnConfig)
+	r.PUT("/api/system/vuln-config", systemH.SetVulnConfig)
 	return r
 }
 

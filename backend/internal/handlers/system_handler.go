@@ -12,7 +12,7 @@ import (
 	"pt-dana-sejahtera/internal/security"
 )
 
-// SystemHandler serves the public mode-switch API at /api/system/mode.
+// SystemHandler serves the public mode-switch and vuln-config APIs.
 // No authentication is required — protected only by optional LabKeyRequired middleware.
 type SystemHandler struct {
 	db  *gorm.DB
@@ -67,6 +67,12 @@ func (h *SystemHandler) SetMode(c *gin.Context) {
 	// Update in-memory mode (atomic).
 	security.SetMode(newMode)
 
+	// When switching back to secure, reset vuln config so that the next
+	// vulnerable-mode session starts with all categories enabled by default.
+	if newMode == security.ModeSecure {
+		security.ResetVulnConfig()
+	}
+
 	// Persist to DB — always update the singleton row (no-op if db is nil, e.g. in tests).
 	if h.db != nil {
 		if err := h.db.Model(&models.SystemSetting{}).
@@ -102,6 +108,51 @@ func (h *SystemHandler) SetMode(c *gin.Context) {
 		"mode":       newModeDisplay,
 		"changed_at": now,
 		"message":    "mode updated successfully",
+	})
+}
+
+// GetVulnConfig returns the current per-category vulnerability configuration.
+// GET /api/system/vuln-config — public, no auth required.
+// Returns the config regardless of mode so the frontend can always read it.
+func (h *SystemHandler) GetVulnConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"config":    security.GetVulnConfig(),
+		"mode":      toExternalMode(security.GetMode()),
+		"timestamp": time.Now().UTC(),
+	})
+}
+
+// SetVulnConfig updates the per-category vulnerability configuration.
+// PUT /api/system/vuln-config — public (optionally protected by LabKeyRequired).
+//
+// Only meaningful when mode = "vulnerable"; returns 400 in secure mode
+// to prevent confusion (secure mode ignores the config anyway).
+//
+// Body: full VulnConfig JSON object.
+func (h *SystemHandler) SetVulnConfig(c *gin.Context) {
+	if !security.IsVulnerable() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "vulnerability config can only be modified in vulnerable mode; switch mode first",
+		})
+		return
+	}
+
+	var cfg security.VulnConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config: " + err.Error()})
+		return
+	}
+
+	security.SetVulnConfig(cfg)
+
+	h.log.Info("Vulnerability config updated",
+		zap.String("ip", c.ClientIP()),
+		zap.String("user_agent", c.Request.UserAgent()),
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"config":  security.GetVulnConfig(),
+		"message": "vulnerability config updated successfully",
 	})
 }
 

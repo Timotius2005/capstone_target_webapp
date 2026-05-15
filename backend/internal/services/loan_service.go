@@ -47,8 +47,8 @@ func (s *loanService) Apply(req models.CreateLoanRequest, userID uuid.UUID) (int
 		return nil, errors.New("nasabah profile required before applying for a loan")
 	}
 
-	if security.IsSecure() {
-		// OWASP API6 Secure: max pending loan applications per nasabah
+	// A04 Secure: enforce pending-loan cap and per-window rate limit.
+	if security.IsSecureFor(security.CategoryA04) {
 		pending, err := s.loanRepo.CountPendingByNasabah(nasabah.ID)
 		if err != nil {
 			return nil, err
@@ -57,7 +57,6 @@ func (s *loanService) Apply(req models.CreateLoanRequest, userID uuid.UUID) (int
 			return nil, fmt.Errorf("maximum %d pending loan applications allowed", MaxPendingLoansPerNasabah)
 		}
 
-		// OWASP API4 Secure: rate limit loan submissions per time window
 		since := time.Now().Add(-time.Duration(LoanCreationWindowSec) * time.Second)
 		recent, err := s.loanRepo.CountRecentByNasabah(nasabah.ID, since)
 		if err != nil {
@@ -66,15 +65,18 @@ func (s *loanService) Apply(req models.CreateLoanRequest, userID uuid.UUID) (int
 		if recent >= MaxLoansPerWindow {
 			return nil, fmt.Errorf("too many loan applications — max %d per %ds", MaxLoansPerWindow, LoanCreationWindowSec)
 		}
+	}
+	// TODO: Vulnerability Injection Point — OWASP API4 / A04 (Insecure Design)
+	// A04 enabled: no pending limit, no rate limiting — unlimited loan spam.
 
-		// OWASP API3 Secure: validate amount range
+	// A06 Secure: validate loan amount range.
+	if security.IsSecureFor(security.CategoryA06) {
 		if req.Amount < 1_000_000 || req.Amount > 500_000_000 {
 			return nil, errors.New("loan amount must be between Rp 1.000.000 and Rp 500.000.000")
 		}
 	}
-	// TODO: Vulnerability Injection Point — OWASP API6 (Unrestricted Access to Sensitive Business Flows)
-	// TODO: Vulnerability Injection Point — OWASP API4 (Unrestricted Resource Consumption)
-	// Vulnerable: no pending limit, no rate limiting, no amount validation
+	// TODO: Vulnerability Injection Point — OWASP API6 / A06 (Vulnerable Components / Business Flow)
+	// A06 enabled: no amount validation — arbitrary loan amounts accepted.
 
 	loan := &models.Loan{
 		ID:           uuid.New(),
@@ -95,7 +97,9 @@ func (s *loanService) Apply(req models.CreateLoanRequest, userID uuid.UUID) (int
 		zap.Float64("amount", loan.Amount),
 	)
 
-	if security.IsVulnerable() {
+	if security.IsVulnerableFor(security.CategoryA06) {
+		// TODO: Vulnerability Injection Point — A06 (Business Flow)
+		// A06 enabled: full internal loan fields returned in apply response.
 		return loan.ToVulnerableResponse(), nil
 	}
 	return loan.ToResponse(), nil
@@ -109,22 +113,24 @@ func (s *loanService) GetByID(loanID uuid.UUID, requestingUserID uuid.UUID, role
 		return nil, err
 	}
 
-	if security.IsSecure() && role == models.RoleNasabah {
-		// OWASP API1 Secure: verify requester owns this loan via their nasabah profile
+	// A01 Secure: verify requester owns this loan via their nasabah profile.
+	if security.IsSecureFor(security.CategoryA01) && role == models.RoleNasabah {
 		nasabah, err := s.nasabahRepo.FindByUserID(requestingUserID)
 		if err != nil || nasabah.ID != loan.NasabahID {
 			s.log.Warn("BOLA attempt on loan",
 				zap.String("requesting_user", requestingUserID.String()),
 				zap.String("loan_id", loanID.String()),
 			)
-			// Return 404, not 403 — avoids confirming object existence to attacker
+			// Return 404, not 403 — avoids confirming object existence to attacker.
 			return nil, repository.ErrNotFound
 		}
 	}
-	// TODO: Vulnerability Injection Point — OWASP API1 (Broken Object Level Authorization)
-	// Vulnerable: no ownership check — any authenticated user can fetch any loan by ID
+	// TODO: Vulnerability Injection Point — OWASP API1 / A01 (BOLA)
+	// A01 enabled: no ownership check — any authenticated user can fetch any loan by ID.
 
-	if security.IsVulnerable() {
+	if security.IsVulnerableFor(security.CategoryA02) {
+		// TODO: Vulnerability Injection Point — A02 (Cryptographic Failures)
+		// A02 enabled: full internal loan fields (including sensitive data) in response.
 		return loan.ToVulnerableResponse(), nil
 	}
 	return loan.ToResponse(), nil
@@ -137,10 +143,9 @@ func (s *loanService) List(userID uuid.UUID, role string, page, limit int) (inte
 		page = defaultPage
 	}
 
-	if security.IsVulnerable() {
-		// TODO: Vulnerability Injection Point — OWASP API4 (Unrestricted Resource Consumption)
-		// TODO: Vulnerability Injection Point — OWASP API1 (BOLA)
-		// Vulnerable: returns ALL loans regardless of requester's role
+	if security.IsVulnerableFor(security.CategoryA01) {
+		// TODO: Vulnerability Injection Point — OWASP API4+API1 / A01 (BOLA)
+		// A01 enabled: returns ALL loans regardless of requester's role.
 		s.log.Warn("[VULNERABLE] Loan list without ownership or pagination")
 		loans, err := s.loanRepo.ListAll()
 		if err != nil {
@@ -205,8 +210,8 @@ func (s *loanService) Approve(loanID uuid.UUID, approverUserID uuid.UUID, role s
 		return nil, err
 	}
 
-	if security.IsSecure() {
-		// OWASP API5 Secure: only admin can approve loans
+	// A07 Secure: only admin can approve loans.
+	if security.IsSecureFor(security.CategoryA07) {
 		if role != models.RoleAdmin {
 			s.log.Warn("Unauthorized loan approval attempt",
 				zap.String("user_id", approverUserID.String()),
@@ -218,8 +223,8 @@ func (s *loanService) Approve(loanID uuid.UUID, approverUserID uuid.UUID, role s
 			return nil, fmt.Errorf("loan is not in pending status (current: %s)", loan.Status)
 		}
 	}
-	// TODO: Vulnerability Injection Point — OWASP API5 (Broken Function Level Authorization)
-	// Vulnerable: staff can approve loans — no role enforcement
+	// TODO: Vulnerability Injection Point — OWASP API5 / A07 (Authentication Failures / BFLA)
+	// A07 enabled: staff can approve loans — no role enforcement.
 
 	now := time.Now()
 	loan.Status = models.LoanStatusApproved
@@ -235,7 +240,7 @@ func (s *loanService) Approve(loanID uuid.UUID, approverUserID uuid.UUID, role s
 		zap.String("approver", approverUserID.String()),
 	)
 
-	if security.IsVulnerable() {
+	if security.IsVulnerableFor(security.CategoryA02) {
 		return loan.ToVulnerableResponse(), nil
 	}
 	return loan.ToResponse(), nil
@@ -249,8 +254,8 @@ func (s *loanService) Reject(loanID uuid.UUID, staffUserID uuid.UUID, role strin
 		return nil, err
 	}
 
-	if security.IsSecure() {
-		// OWASP API5 Secure: admin or staff can reject
+	// A07 Secure: admin or staff can reject; nasabah cannot.
+	if security.IsSecureFor(security.CategoryA07) {
 		if role == models.RoleNasabah {
 			return nil, repository.ErrForbidden
 		}
@@ -258,6 +263,8 @@ func (s *loanService) Reject(loanID uuid.UUID, staffUserID uuid.UUID, role strin
 			return nil, fmt.Errorf("can only reject pending loans (current: %s)", loan.Status)
 		}
 	}
+	// TODO: Vulnerability Injection Point — OWASP API5 / A07 (BFLA)
+	// A07 enabled: nasabah can reject any loan, any status.
 
 	loan.Status = models.LoanStatusRejected
 	loan.Notes = notes
@@ -271,7 +278,7 @@ func (s *loanService) Reject(loanID uuid.UUID, staffUserID uuid.UUID, role strin
 		zap.String("by", staffUserID.String()),
 	)
 
-	if security.IsVulnerable() {
+	if security.IsVulnerableFor(security.CategoryA02) {
 		return loan.ToVulnerableResponse(), nil
 	}
 	return loan.ToResponse(), nil
@@ -290,8 +297,8 @@ func (s *loanService) UpdateStatus(
 		return nil, err
 	}
 
-	if security.IsSecure() {
-		// OWASP API3 Secure: staff cannot set status to 'approved' — admin only
+	// A08 Secure: staff cannot set status to 'approved' — admin only.
+	if security.IsSecureFor(security.CategoryA08) {
 		if role == models.RoleStaff && req.Status == models.LoanStatusApproved {
 			s.log.Warn("BOPLA: staff attempted to approve loan",
 				zap.String("staff_id", requestingUserID.String()),
@@ -299,13 +306,13 @@ func (s *loanService) UpdateStatus(
 			)
 			return nil, errors.New("staff cannot approve loans — use /approve endpoint (admin only)")
 		}
-		// Nasabah cannot change status at all
+		// Nasabah cannot change status at all.
 		if role == models.RoleNasabah {
 			return nil, repository.ErrForbidden
 		}
 	}
-	// TODO: Vulnerability Injection Point — OWASP API3 (BOPLA / Mass Assignment)
-	// Vulnerable: staff can set status to 'approved' — bypasses business rule
+	// TODO: Vulnerability Injection Point — OWASP API3 / A08 (Software & Data Integrity Failures)
+	// A08 enabled: staff can set status to 'approved' — bypasses business rule (mass assignment).
 
 	loan.Status = req.Status
 	if req.Notes != "" {
@@ -316,7 +323,7 @@ func (s *loanService) UpdateStatus(
 		return nil, err
 	}
 
-	if security.IsVulnerable() {
+	if security.IsVulnerableFor(security.CategoryA02) {
 		return loan.ToVulnerableResponse(), nil
 	}
 	return loan.ToResponse(), nil

@@ -45,12 +45,12 @@ func AuthRequired(authSvc services.AuthService) gin.HandlerFunc {
 
 // AdminOnly enforces role=admin in secure mode.
 // OWASP API5 Secure: role-based function level authorization.
-// OWASP API5 Vulnerable: no role check — any user reaches admin routes.
+// OWASP API5 Vulnerable [A07]: no role check — any authenticated user reaches admin routes.
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if security.IsVulnerable() {
-			// TODO: Vulnerability Injection Point — OWASP API5 (Broken Function Level Authorization)
-			// In vulnerable mode, any authenticated user can reach admin endpoints
+		if security.IsVulnerableFor(security.CategoryA07) {
+			// TODO: Vulnerability Injection Point — OWASP API5 / A07 (Broken Function Level Authorization)
+			// A07 enabled: any authenticated user can reach admin endpoints.
 			c.Next()
 			return
 		}
@@ -66,6 +66,7 @@ func AdminOnly() gin.HandlerFunc {
 }
 
 // RoleCheck allows the specified roles only.
+// Always enforced regardless of mode (not an injection point).
 func RoleCheck(roles ...string) gin.HandlerFunc {
 	allowed := make(map[string]bool, len(roles))
 	for _, r := range roles {

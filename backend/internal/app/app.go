@@ -122,6 +122,9 @@ func Run() error {
 	{
 		system.GET("/mode", systemH.GetMode)
 		system.PUT("/mode", systemH.SetMode)
+		// Per-category OWASP vulnerability config (only active in vulnerable mode).
+		system.GET("/vuln-config", systemH.GetVulnConfig)
+		system.PUT("/vuln-config", systemH.SetVulnConfig)
 	}
 
 	// ── Health endpoints ──────────────────────────────────────────────────────

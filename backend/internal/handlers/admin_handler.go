@@ -44,9 +44,9 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 
 	result := make([]interface{}, len(users))
 	for i, u := range users {
-		if security.IsVulnerable() {
-			// TODO: Vulnerability Injection Point — OWASP API3 (BOPLA)
-			// Returns password_hash, login_attempts, internal fields
+		if security.IsVulnerableFor(security.CategoryA02) {
+			// TODO: Vulnerability Injection Point — OWASP API3 / A02 (Cryptographic Failures / BOPLA)
+			// A02 enabled: returns password_hash, login_attempts, and internal fields.
 			result[i] = u.ToVulnerableResponse()
 		} else {
 			result[i] = u.ToResponse()

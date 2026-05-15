@@ -57,10 +57,11 @@ func NewExternalService(log *zap.Logger) ExternalService {
 }
 
 func (s *externalService) Fetch(req FetchRequest) (*FetchResponse, error) {
-	if security.IsSecure() {
+	if security.IsSecureFor(security.CategoryA10) {
 		return s.secureFetch(req)
 	}
-	// TODO: Vulnerability Injection Point — OWASP API #7 (SSRF)
+	// TODO: Vulnerability Injection Point — OWASP API7 / A10 (SSRF)
+	// A10 enabled: no URL allowlist — arbitrary internal/external URLs reachable.
 	return s.vulnerableFetch(req)
 }
 

@@ -15,18 +15,58 @@ import {
   setRuntimeMode,
 } from '@/utils/securityMode'
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 type Mode = 'secure' | 'sandbox'
+
+/**
+ * Per-category OWASP Top 10 vulnerability configuration.
+ * Only applied when mode === 'sandbox'. In secure mode every category is
+ * always treated as disabled regardless of this object.
+ */
+export interface VulnConfig {
+  A01_BrokenAccessControl: boolean
+  A02_CryptographicFailures: boolean
+  A03_Injection: boolean
+  A04_InsecureDesign: boolean
+  A05_SecurityMisconfiguration: boolean
+  A06_VulnerableComponents: boolean
+  A07_AuthenticationFailures: boolean
+  A08_SoftwareDataIntegrityFailures: boolean
+  A09_SecurityLoggingFailures: boolean
+  A10_SSRF: boolean
+}
+
+/** All categories enabled — identical to the original all-or-nothing vulnerable mode. */
+export const defaultVulnConfig: VulnConfig = {
+  A01_BrokenAccessControl:           true,
+  A02_CryptographicFailures:         true,
+  A03_Injection:                     true,
+  A04_InsecureDesign:                true,
+  A05_SecurityMisconfiguration:      true,
+  A06_VulnerableComponents:          true,
+  A07_AuthenticationFailures:        true,
+  A08_SoftwareDataIntegrityFailures: true,
+  A09_SecurityLoggingFailures:       true,
+  A10_SSRF:                          true,
+}
 
 interface ModeCtx {
   mode: Mode
   isLoading: boolean
+  vulnConfig: VulnConfig
+  isVulnConfigLoading: boolean
   switchMode: (mode: Mode) => Promise<void>
+  updateVulnConfig: (config: VulnConfig) => Promise<void>
 }
 
 export const ModeContext = createContext<ModeCtx>({
-  mode: 'secure',
-  isLoading: true,
-  switchMode: async () => {},
+  mode:                'secure',
+  isLoading:           true,
+  vulnConfig:          defaultVulnConfig,
+  isVulnConfigLoading: false,
+  switchMode:          async () => {},
+  updateVulnConfig:    async () => {},
 })
 
 export const useMode = () => useContext(ModeContext)
@@ -75,11 +115,15 @@ function migrateTokenStorage(token: string, from: Mode, to: Mode) {
   }
 }
 
-export function ModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<Mode>(getRuntimeMode)
-  const [isLoading, setIsLoading] = useState(true)
+// ── Provider ──────────────────────────────────────────────────────────────────
 
-  // On mount, fetch the authoritative mode from the backend and sync state.
+export function ModeProvider({ children }: { children: ReactNode }) {
+  const [mode, setMode]                             = useState<Mode>(getRuntimeMode)
+  const [isLoading, setIsLoading]                   = useState(true)
+  const [vulnConfig, setVulnConfig]                 = useState<VulnConfig>(defaultVulnConfig)
+  const [isVulnConfigLoading, setIsVulnConfigLoading] = useState(false)
+
+  // ── Mount: fetch authoritative mode + vuln config from backend ─────────────
   useEffect(() => {
     const fetchMode = async () => {
       try {
@@ -94,6 +138,11 @@ export function ModeProvider({ children }: { children: ReactNode }) {
           setRuntimeMode(resolved)
           setMode(resolved)
           syncModeCookie(resolved)
+
+          // If we started in vulnerable mode, also load the current vuln config.
+          if (resolved === 'sandbox') {
+            fetchVulnConfigSilent(headers)
+          }
         }
       } catch {
         // Backend unreachable — keep the env-var default set in securityMode.ts
@@ -102,10 +151,27 @@ export function ModeProvider({ children }: { children: ReactNode }) {
       }
     }
     fetchMode()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // switchMode: calls PUT /api/system/mode (public endpoint, no auth required).
-  // Token storage is migrated if the user happens to be logged in.
+  // Internal helper: loads vuln config without touching isLoading.
+  const fetchVulnConfigSilent = useCallback(
+    async (headers: Record<string, string> = {}) => {
+      try {
+        const labKey = process.env.NEXT_PUBLIC_LAB_KEY
+        if (labKey) headers['X-LAB-KEY'] = labKey
+        const res = await fetch(`${API_BASE}/api/system/vuln-config`, { headers })
+        if (res.ok) {
+          const data = (await res.json()) as { config: VulnConfig }
+          setVulnConfig(data.config)
+        }
+      } catch {
+        // ignore — keep current config
+      }
+    },
+    []
+  )
+
+  // ── switchMode ─────────────────────────────────────────────────────────────
   const switchMode = useCallback(
     async (newMode: Mode) => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -116,9 +182,9 @@ export function ModeProvider({ children }: { children: ReactNode }) {
       const apiMode = newMode === 'sandbox' ? 'vulnerable' : 'secure'
 
       const res = await fetch(`${API_BASE}/api/system/mode`, {
-        method: 'PUT',
+        method:  'PUT',
         headers,
-        body: JSON.stringify({ mode: apiMode }),
+        body:    JSON.stringify({ mode: apiMode }),
       })
 
       if (!res.ok) {
@@ -131,8 +197,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
       const data = (await res.json()) as { mode: string }
       const resolved: Mode = data.mode === 'secure' ? 'secure' : 'sandbox'
 
-      // Migrate JWT storage if the user is currently authenticated,
-      // so subsequent API calls still work after the mode change.
+      // Migrate JWT storage if the user is currently authenticated.
       const token =
         getRuntimeMode() === 'sandbox'
           ? localStorage.getItem('auth_token')
@@ -144,12 +209,56 @@ export function ModeProvider({ children }: { children: ReactNode }) {
       setRuntimeMode(resolved)
       setMode(resolved)
       syncModeCookie(resolved)
+
+      // When switching to vulnerable mode, fetch the current config.
+      // When switching back to secure, reset config to defaults so the next
+      // vulnerable session starts clean.
+      if (resolved === 'sandbox') {
+        fetchVulnConfigSilent()
+      } else {
+        setVulnConfig(defaultVulnConfig)
+      }
     },
-    [mode]
+    [mode, fetchVulnConfigSilent]
+  )
+
+  // ── updateVulnConfig ───────────────────────────────────────────────────────
+  // Sends the new config to the backend and updates local state on success.
+  // Only callable when mode === 'sandbox' (backend also enforces this).
+  const updateVulnConfig = useCallback(
+    async (config: VulnConfig) => {
+      setIsVulnConfigLoading(true)
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        const labKey = process.env.NEXT_PUBLIC_LAB_KEY
+        if (labKey) headers['X-LAB-KEY'] = labKey
+
+        const res = await fetch(`${API_BASE}/api/system/vuln-config`, {
+          method:  'PUT',
+          headers,
+          body:    JSON.stringify(config),
+        })
+
+        if (!res.ok) {
+          const err = await res
+            .json()
+            .catch(() => ({ error: 'unknown error' })) as { error?: string }
+          throw new Error(err.error ?? `HTTP ${res.status}`)
+        }
+
+        const data = (await res.json()) as { config: VulnConfig }
+        setVulnConfig(data.config)
+      } finally {
+        setIsVulnConfigLoading(false)
+      }
+    },
+    []
   )
 
   return (
-    <ModeContext.Provider value={{ mode, isLoading, switchMode }}>
+    <ModeContext.Provider
+      value={{ mode, isLoading, vulnConfig, isVulnConfigLoading, switchMode, updateVulnConfig }}
+    >
       {children}
     </ModeContext.Provider>
   )

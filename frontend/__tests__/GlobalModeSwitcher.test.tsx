@@ -4,13 +4,20 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import GlobalModeSwitcher from '@/components/GlobalModeSwitcher'
-import { ModeContext } from '@/contexts/ModeContext'
+import { ModeContext, defaultVulnConfig } from '@/contexts/ModeContext'
 
 function renderSwitcher(
   mode: 'secure' | 'sandbox',
   switchMode: jest.Mock = jest.fn().mockResolvedValue(undefined)
 ) {
-  const ctx = { mode, isLoading: false, switchMode }
+  const ctx = {
+    mode,
+    isLoading:           false,
+    vulnConfig:          defaultVulnConfig,
+    isVulnConfigLoading: false,
+    switchMode,
+    updateVulnConfig:    jest.fn().mockResolvedValue(undefined),
+  }
   return {
     switchMode,
     ...render(
@@ -120,15 +127,19 @@ describe('GlobalModeSwitcher — loading state', () => {
 
 describe('GlobalModeSwitcher — context propagation', () => {
   it('banner text updates when context switches from secure to vulnerable', () => {
+    const base = {
+      isLoading: false, vulnConfig: defaultVulnConfig,
+      isVulnConfigLoading: false, updateVulnConfig: jest.fn(),
+    }
     const { rerender } = render(
-      <ModeContext.Provider value={{ mode: 'secure', isLoading: false, switchMode: jest.fn() }}>
+      <ModeContext.Provider value={{ ...base, mode: 'secure', switchMode: jest.fn() }}>
         <GlobalModeSwitcher />
       </ModeContext.Provider>
     )
     expect(screen.getAllByText(/SECURE MODE/i).length).toBeGreaterThan(0)
 
     rerender(
-      <ModeContext.Provider value={{ mode: 'sandbox', isLoading: false, switchMode: jest.fn() }}>
+      <ModeContext.Provider value={{ ...base, mode: 'sandbox', switchMode: jest.fn() }}>
         <GlobalModeSwitcher />
       </ModeContext.Provider>
     )
