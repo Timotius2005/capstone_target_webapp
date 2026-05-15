@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
+  // appDir is stable in Next.js 14 — no longer needs experimental flag
   async rewrites() {
     return [
       {

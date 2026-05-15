@@ -142,9 +142,7 @@ interface VulnConfigPanelProps {
 export default function VulnConfigPanel({ onClose }: VulnConfigPanelProps) {
   const { mode, vulnConfig, isVulnConfigLoading, updateVulnConfig } = useMode()
 
-  // Only render when in vulnerable mode
-  if (mode !== 'sandbox') return null
-
+  // All hooks must be called before any early return (Rules of Hooks).
   const handleToggle = useCallback(
     (key: keyof VulnConfig, value: boolean) => {
       updateVulnConfig({ ...vulnConfig, [key]: value })
@@ -152,16 +150,27 @@ export default function VulnConfigPanel({ onClose }: VulnConfigPanelProps) {
     [vulnConfig, updateVulnConfig]
   )
 
-  const handleEnableAll = () => updateVulnConfig(defaultVulnConfig)
+  const handleEnableAll = useCallback(
+    () => updateVulnConfig(defaultVulnConfig),
+    [updateVulnConfig]
+  )
 
-  const handleDisableAll = () => {
-    const allOff = Object.fromEntries(
-      Object.keys(defaultVulnConfig).map((k) => [k, false])
-    ) as VulnConfig
-    updateVulnConfig(allOff)
-  }
+  const handleDisableAll = useCallback(
+    () => {
+      // Object.fromEntries produces { [k: string]: boolean } — cast via unknown
+      // to satisfy TypeScript's strict overlap check for VulnConfig.
+      const allOff = Object.fromEntries(
+        Object.keys(defaultVulnConfig).map((k) => [k, false])
+      ) as unknown as VulnConfig
+      updateVulnConfig(allOff)
+    },
+    [updateVulnConfig]
+  )
 
   const enabledCount = Object.values(vulnConfig).filter(Boolean).length
+
+  // Guard: panel is invisible and non-interactive in secure mode.
+  if (mode !== 'sandbox') return null
 
   return (
     /* Backdrop */
