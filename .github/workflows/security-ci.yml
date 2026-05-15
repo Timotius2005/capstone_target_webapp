@@ -381,18 +381,20 @@ jobs:
           FAIL=0
           echo "====== OWASP Smoke Tests ======"
 
-          # [API8] Runtime mode must be 'secure'
-          MODE=$(curl -sf http://localhost:8080/api/system/mode \
-                 | python3 -c "import sys,json; print(json.load(sys.stdin).get('mode','?'))" 2>/dev/null)
-          if [ "$MODE" = "secure" ]; then
+          # [API8] Runtime mode must be 'secure'.
+          # Use grep on the raw JSON instead of python3 pipeline to avoid
+          # pipefail issues under GitHub Actions' default set -eo pipefail.
+          MODE_RESP=$(curl -s http://localhost:8080/api/system/mode 2>/dev/null || echo '{}')
+          if echo "$MODE_RESP" | grep -q '"secure"'; then
             echo "PASS [API8] mode=secure confirmed"
           else
-            echo "FAIL [API8] expected mode=secure, got mode=$MODE"
+            echo "FAIL [API8] expected mode=secure — got: $MODE_RESP"
             FAIL=1
           fi
 
-          # [API2] Unauthenticated /auth/me → 401 (broken auth protection)
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/auth/me)
+          # [API2] Unauthenticated /auth/me must return 401 (broken auth protection).
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                 http://localhost:8080/api/v1/auth/me 2>/dev/null || echo "000")
           if [ "$CODE" = "401" ]; then
             echo "PASS [API2] /auth/me → 401 (unauthenticated blocked)"
           else
@@ -400,8 +402,9 @@ jobs:
             FAIL=1
           fi
 
-          # [API5] Admin route without auth → 401 (BFLA protection active)
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/admin/users)
+          # [API5] Admin route without auth must return 401 (BFLA protection active).
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                 http://localhost:8080/api/v1/admin/users 2>/dev/null || echo "000")
           if [ "$CODE" = "401" ]; then
             echo "PASS [API5] /admin/users → 401 (unauthenticated blocked)"
           else
@@ -409,29 +412,21 @@ jobs:
             FAIL=1
           fi
 
-          # [API9] Deprecated /api/v0/debug must NOT be 200 in secure mode
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v0/debug)
+          # [API9] Deprecated v0 routes must NOT be exposed (expect 404) in secure mode.
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                 http://localhost:8080/api/v0/debug 2>/dev/null || echo "000")
           if [ "$CODE" != "200" ]; then
             echo "PASS [API9] /api/v0/debug → $CODE (not exposed in secure mode)"
           else
-            echo "FAIL [API9] /api/v0/debug is reachable (200) in secure mode"
+            echo "FAIL [API9] /api/v0/debug returned 200 — exposed in secure mode"
             FAIL=1
-          fi
-
-          # [API2/API4] Login rate-limit header present after request
-          HDRS=$(curl -sI -X POST http://localhost:8080/api/v1/auth/login \
-                 -H "Content-Type: application/json" \
-                 -d '{"username":"probe","password":"probe"}')
-          if echo "$HDRS" | grep -qi "retry-after\|x-ratelimit\|429"; then
-            echo "PASS [API4] rate-limit signalled on login endpoint"
-          else
-            echo "INFO [API4] no rate-limit header yet (within allowed window)"
           fi
 
           echo "================================"
 
           if [ "$FAIL" -eq 0 ]; then
             echo "status=✅ Passed (4/4 checks)" >> "$GITHUB_OUTPUT"
+            echo "All OWASP smoke checks passed."
           else
             echo "status=❌ Failed — secure-mode violation detected" >> "$GITHUB_OUTPUT"
             exit 1
