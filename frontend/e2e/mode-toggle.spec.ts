@@ -53,7 +53,12 @@ async function clickToggleAndWait(page: Page, buttonLabel: RegExp) {
 test.describe('GlobalModeSwitcher banner', () => {
   test.beforeEach(async ({ page }) => {
     await resetToSecure(page)
-    await page.goto('/')
+    // Navigate directly to /login rather than / → avoid the Next.js server-side
+    // redirect chain that can resolve goto() before React effects have run.
+    await page.goto('/login')
+    // Wait for ModeContext async fetch to complete and confirm secure state.
+    // This also guarantees ThemeProvider has mounted (banner is in ARIA tree).
+    await expect(page.getByRole('banner')).toContainText(/SECURE MODE/i, { timeout: 10000 })
   })
 
   test('banner is visible without login on the homepage', async ({ page }) => {
@@ -69,21 +74,22 @@ test.describe('GlobalModeSwitcher banner', () => {
 
   test('banner shows VULNERABLE when mode is vulnerable', async ({ page }) => {
     await setModeViaAPI(page, 'vulnerable')
-    await page.goto('/')
+    await page.goto('/login')
     const banner = page.getByRole('banner')
     await expect(banner).toContainText(/VULNERABLE/i, { timeout: 10000 })
   })
 
   test('banner has green background in secure mode', async ({ page }) => {
+    // beforeEach already confirmed SECURE MODE; check the Tailwind class directly.
+    // Computed-style checks are fragile in headless CI due to CSS Color Level 4
+    // serialisation variance across Chromium versions.
     const banner = page.getByRole('banner')
-    const bg = await banner.evaluate((el) => getComputedStyle(el).backgroundColor)
-    // #14532d = rgb(20, 83, 45) — the secure green colour
-    expect(bg).toMatch(/rgb\(20,\s*83,\s*45\)|rgb\(14,\s*59,\s*34\)/)
+    await expect(banner).toHaveClass(/bg-\[#14532d\]/, { timeout: 5000 })
   })
 
   test('banner has red background in vulnerable mode', async ({ page }) => {
     await setModeViaAPI(page, 'vulnerable')
-    await page.goto('/')
+    await page.goto('/login')
     const banner = page.getByRole('banner')
 
     // Step 1: wait for the async mode-fetch to complete and update the text.
@@ -201,7 +207,9 @@ test.describe('Mode toggle — dashboard (authenticated)', () => {
 test.describe('GlobalModeSwitcher — accessibility', () => {
   test.beforeEach(async ({ page }) => {
     await resetToSecure(page)
-    await page.goto('/')
+    await page.goto('/login')
+    // Wait for ModeContext fetch + ThemeProvider mount before any assertion.
+    await expect(page.getByRole('banner')).toContainText(/SECURE MODE/i, { timeout: 10000 })
   })
 
   test('banner has role="banner" attribute', async ({ page }) => {

@@ -21,7 +21,6 @@ export const useTheme = () => useContext(ThemeContext)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
-  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem('theme') as Theme | null
@@ -31,7 +30,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     setTheme(preferred)
     document.documentElement.classList.toggle('dark', preferred === 'dark')
-    setMounted(true)
   }, [])
 
   const toggleTheme = () => {
@@ -39,15 +37,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(next)
     localStorage.setItem('theme', next)
     document.documentElement.classList.toggle('dark', next === 'dark')
-  }
-
-  // Prevent flash before mount
-  if (!mounted) {
-    return (
-      <div style={{ visibility: 'hidden' }} suppressHydrationWarning>
-        {children}
-      </div>
-    )
   }
 
   return (
