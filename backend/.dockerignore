@@ -1,0 +1,6 @@
+.env
+*.test
+tests/
+tmp/
+bin/
+*.md

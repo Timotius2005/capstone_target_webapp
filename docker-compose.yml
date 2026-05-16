@@ -1,55 +1,107 @@
 version: '3.8'
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PT. Dana Sejahtera — Docker Compose
+#
+# Quick start:
+#   cp .env.example .env       # fill in secrets if you want custom values
+#   docker compose up --build
+#
+# All ${VAR} references are read from a root-level .env file.
+# Variables marked with :? will abort the build if unset.
+# Variables with :- will use the shown default if unset.
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: pt-dana-sejahtera-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: pt_dana_sejahtera
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password123
+      POSTGRES_USER:     ${DB_USER:-fintech}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-securepass}
+      POSTGRES_DB:       ${DB_NAME:-nasabahdb}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fintech} -d ${DB_NAME:-nasabahdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
+  # ─── Backend (Go / Gin) ──────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: pt-dana-sejahtera-backend
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password123
-      - DB_NAME=pt_dana_sejahtera
-      - JWT_SECRET=your-secret-key-here
+      PORT:              "8080"
+      ENVIRONMENT:       production
+      APP_SECURITY_MODE: ${APP_SECURITY_MODE:-secure}
+      # Database — uses Docker service name "postgres", not localhost
+      DB_HOST:           postgres
+      DB_PORT:           "5432"
+      DB_USER:           ${DB_USER:-fintech}
+      DB_PASSWORD:       ${DB_PASSWORD:-securepass}
+      DB_NAME:           ${DB_NAME:-nasabahdb}
+      DB_SSLMODE:        disable
+      # JWT — override in .env for non-default deployments
+      JWT_SECRET:        ${JWT_SECRET:-change-me-in-production-min-32-chars!!}
+      # Lab access key (optional) — when set, /api/system/* require X-LAB-KEY header
+      LAB_KEY:           ${LAB_KEY:-}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
+  # ─── Frontend (Next.js 14 standalone) ───────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # BACKEND_URL: server-side (container → container) used by Next.js rewrites.
+        BACKEND_URL: "http://backend:8080"
+        # NEXT_PUBLIC_API_URL: baked into the client JS bundle.
+        # Browser calls the HOST's published port 8080, not the container name.
+        NEXT_PUBLIC_API_URL: "http://localhost:8080"
     container_name: pt-dana-sejahtera-frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
+    environment:
+      NODE_ENV:                    production
+      NEXT_PUBLIC_SECURITY_MODE:   ${APP_SECURITY_MODE:-secure}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app-network
 
 volumes:
   postgres_data:
+    name: pt-dana-sejahtera-postgres-data
 
 networks:
   app-network:
+    name: pt-dana-sejahtera-network
     driver: bridge

@@ -112,7 +112,14 @@ describe('GlobalModeSwitcher — error handling', () => {
 
 describe('GlobalModeSwitcher — loading state', () => {
   it('disables button while isLoading', () => {
-    const ctx = { mode: 'secure' as const, isLoading: true, switchMode: jest.fn() }
+    const ctx = {
+      mode:                'secure' as const,
+      isLoading:           true,
+      vulnConfig:          defaultVulnConfig,
+      isVulnConfigLoading: false,
+      switchMode:          jest.fn(),
+      updateVulnConfig:    jest.fn().mockResolvedValue(undefined),
+    }
     render(
       <ModeContext.Provider value={ctx}>
         <GlobalModeSwitcher />

@@ -7,7 +7,7 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import ModeBadge from '@/components/ModeBadge'
-import { ModeContext } from '@/contexts/ModeContext'
+import { ModeContext, defaultVulnConfig } from '@/contexts/ModeContext'
 
 // Helper: wrap a component with a mock ModeContext value
 function renderWithMode(
@@ -16,8 +16,11 @@ function renderWithMode(
 ) {
   const ctx = {
     mode,
-    isLoading: false,
-    switchMode: jest.fn().mockResolvedValue(undefined),
+    isLoading:           false,
+    vulnConfig:          defaultVulnConfig,
+    isVulnConfigLoading: false,
+    switchMode:          jest.fn().mockResolvedValue(undefined),
+    updateVulnConfig:    jest.fn().mockResolvedValue(undefined),
   }
   return render(
     <ModeContext.Provider value={ctx}>
@@ -84,7 +87,14 @@ describe('ModeBadge — size prop', () => {
 
 describe('ModeBadge — isLoading state', () => {
   it('still renders label while loading (shows last-known mode)', () => {
-    const ctx = { mode: 'secure' as const, isLoading: true, switchMode: jest.fn() }
+    const ctx = {
+      mode:                'secure' as const,
+      isLoading:           true,
+      vulnConfig:          defaultVulnConfig,
+      isVulnConfigLoading: false,
+      switchMode:          jest.fn(),
+      updateVulnConfig:    jest.fn().mockResolvedValue(undefined),
+    }
     render(
       <ModeContext.Provider value={ctx}>
         <ModeBadge />

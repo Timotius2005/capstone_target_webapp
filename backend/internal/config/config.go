@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 )
 
 // Config holds all application configuration.
@@ -31,7 +30,7 @@ type Config struct {
 
 func New() *Config {
 	cfg := &Config{
-		Port:         getEnv("PORT", ""),
+		Port:         getEnv("PORT", "8080"),
 		DBHost:       getEnv("DB_HOST", ""),
 		DBPort:       getEnv("DB_PORT", ""),
 		DBUser:       getEnv("DB_USER", ""),
@@ -63,11 +62,3 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvAsInt(key string, fallback int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return fallback
-}

@@ -1,0 +1,14 @@
+node_modules
+.next
+.env
+.env.local
+.env.*.local
+playwright-report
+test-results
+e2e/.auth
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+README.md
