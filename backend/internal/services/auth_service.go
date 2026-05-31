@@ -54,8 +54,13 @@ type Claims struct {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+type RegisterResponse struct {
+	Token string              `json:"token"`
+	User  models.UserResponse `json:"user"`
+}
+
 type AuthService interface {
-	Register(req RegisterRequest) (*models.User, error)
+	Register(req RegisterRequest) (*RegisterResponse, error)
 	Login(req LoginRequest) (interface{}, error)
 	ValidateToken(tokenStr string) (*Claims, error)
 	RefreshToken(refreshToken string) (string, error)
@@ -73,7 +78,7 @@ func NewAuthService(userRepo repository.UserRepository, jwtSecret string, log *z
 
 // ─── Register ─────────────────────────────────────────────────────────────────
 
-func (s *authService) Register(req RegisterRequest) (*models.User, error) {
+func (s *authService) Register(req RegisterRequest) (*RegisterResponse, error) {
 	if _, err := s.userRepo.FindByUsername(req.Username); err == nil {
 		return nil, errors.New("username already taken")
 	}
@@ -103,12 +108,18 @@ func (s *authService) Register(req RegisterRequest) (*models.User, error) {
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
+	// Issue a token directly — bypasses login so it works in both secure and vulnerable mode.
+	token, err := s.generateToken(user, 24*time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("generate token: %w", err)
+	}
+
 	s.log.Info("User registered",
 		zap.String("username", user.Username),
 		zap.String("role", user.Role),
 		zap.String("id", user.ID.String()),
 	)
-	return user, nil
+	return &RegisterResponse{Token: token, User: user.ToResponse()}, nil
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────

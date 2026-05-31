@@ -26,7 +26,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authSvc.Register(req)
+	result, err := h.authSvc.Register(req)
 	if err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
@@ -34,7 +34,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "registration successful",
-		"user":    user.ToResponse(),
+		"token":   result.Token,
+		"user":    result.User,
 	})
 }
 
