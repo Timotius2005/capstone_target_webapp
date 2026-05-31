@@ -43,9 +43,9 @@ var ipStore = &sync.Map{}
 // OWASP A09 Vulnerable: no rate limiting — brute-force goes undetected.
 func RateLimit(maxReq, windowSec int, log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if security.IsVulnerableFor(security.CategoryA09) {
+		if security.IsVulnerable() {
 			// TODO: Vulnerability Injection Point — OWASP API4 / A09 (Security Logging Failures)
-			// A09 enabled: rate limiting disabled — brute-force attacks undetected and unblocked.
+			// Vulnerable mode: global rate limiting disabled — brute-force undetected.
 			c.Next()
 			return
 		}
