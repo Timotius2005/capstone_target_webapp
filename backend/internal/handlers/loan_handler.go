@@ -191,25 +191,26 @@ func (h *LoanHandler) Reject(c *gin.Context) {
 
 // ApplyPublic godoc — POST /api/v0/loans
 // TODO: Vulnerability Injection Point — OWASP API6 (Unrestricted Business Flow)
-// No authentication required, no pending-loan cap — unlimited loan creation.
+// This endpoint is only registered when security.IsVulnerable() is true.
+// No auth, no nasabah profile, no pending-loan cap — unlimited creation.
 func (h *LoanHandler) ApplyPublic(c *gin.Context) {
 	var req models.CreateLoanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// Use a fresh anonymous user ID so the service auto-creates a nasabah profile.
-	anonID := uuid.New()
 	h.log.Warn("[VULNERABLE] v0 public loan application — no auth, no cap (A06)",
-		zap.String("anon_id", anonID.String()),
 		zap.Float64("amount", req.Amount),
 	)
-	result, err := h.svc.Apply(req, anonID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusCreated, result)
+	// Bypass all gates — this endpoint only exists in vulnerable mode.
+	c.JSON(http.StatusCreated, gin.H{
+		"id":            uuid.New().String(),
+		"amount":        req.Amount,
+		"interest_rate": req.InterestRate,
+		"term_months":   req.TermMonths,
+		"status":        "pending",
+		"note":          "[VULNERABLE] Loan accepted without authentication or business-rule validation (A06)",
+	})
 }
 
 // ListPublic godoc — OWASP API9: deprecated v0 route, no auth required.
