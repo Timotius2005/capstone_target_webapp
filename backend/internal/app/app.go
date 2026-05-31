@@ -100,6 +100,7 @@ func Run() error {
 	r.Use(middleware.CORS())
 	r.Use(middleware.SecureHeaders())
 	r.Use(middleware.RequestSizeLimit())
+	r.Use(middleware.GlobalRateLimit(log)) // A04 Secure: 30 req/min per URL; A09 Vuln: disabled
 
 	// ── Runtime config endpoints (legacy — admin auth required) ──────────────
 	// GET is public — frontend reads on every page load without auth.

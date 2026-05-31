@@ -51,7 +51,9 @@ func RateLimit(maxReq, windowSec int, log *zap.Logger) gin.HandlerFunc {
 		}
 
 		ip := c.ClientIP()
-		key := ip + c.FullPath()
+		// Use the actual URL path (not route pattern) so each distinct URL
+		// has its own counter — BOLA tests on different UUIDs are independent.
+		key := ip + c.Request.URL.Path
 
 		val, _ := ipStore.LoadOrStore(key, &bucket{
 			resetAt:   time.Now().Add(time.Duration(windowSec) * time.Second),
@@ -81,7 +83,9 @@ func LoginRateLimit(log *zap.Logger) gin.HandlerFunc {
 	return RateLimit(5, 60, log) // 5 requests per 60 seconds per IP
 }
 
-// GlobalRateLimit is a permissive global limit.
+// GlobalRateLimit enforces a per-IP per-URL rate limit in secure mode.
+// 30 req/min per URL is permissive enough for normal API usage but blocks
+// scanners that flood a single endpoint with 50+ rapid requests (A04).
 func GlobalRateLimit(log *zap.Logger) gin.HandlerFunc {
-	return RateLimit(100, 60, log) // 100 req/min globally
+	return RateLimit(30, 60, log)
 }
