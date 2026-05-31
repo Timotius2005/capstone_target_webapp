@@ -92,6 +92,7 @@ func Run() error {
 	}
 
 	r := gin.New()
+	r.HandleMethodNotAllowed = true // return 405 instead of 404 for wrong-method requests
 
 	// ── Global middleware ─────────────────────────────────────────────────────
 	r.Use(middleware.RequestLogger(log))
