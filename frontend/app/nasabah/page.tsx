@@ -9,7 +9,7 @@ import { useMode } from '@/contexts/ModeContext'
 interface Nasabah {
   id: string
   user_id: string
-  name: string
+  full_name: string
   nik: string
   phone: string
   address: string
@@ -31,7 +31,7 @@ export default function NasabahPage() {
   const [rawData, setRawData] = useState<unknown>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({
-    name: '', nik: '', phone: '', address: '', date_of_birth: ''
+    full_name: '', nik: '', phone: '', address: '', date_of_birth: ''
   })
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
@@ -70,7 +70,7 @@ export default function NasabahPage() {
     setFiltered(
       nasabah.filter(
         (n) =>
-          n.name.toLowerCase().includes(q) ||
+          (n.full_name || '').toLowerCase().includes(q) ||
           n.phone.includes(q) ||
           (vulnerable ? n.nik.includes(q) : maskNIK(n.nik).includes(q))
       )
@@ -79,7 +79,7 @@ export default function NasabahPage() {
 
   const validateForm = (): boolean => {
     if (vulnerable) return true // TODO: Vulnerability Injection Point — no validation
-    if (!formData.name.trim() || formData.name.length < 2) {
+    if (!formData.full_name.trim() || formData.full_name.length < 2) {
       setFormError('Nama minimal 2 karakter.')
       return false
     }
@@ -102,7 +102,7 @@ export default function NasabahPage() {
     try {
       await api.post('/api/v1/nasabah', formData)
       setFormSuccess('Nasabah berhasil ditambahkan.')
-      setFormData({ name: '', nik: '', phone: '', address: '', date_of_birth: '' })
+      setFormData({ full_name: '', nik: '', phone: '', address: '', date_of_birth: '' })
       setShowAddForm(false)
       fetchNasabah()
     } catch (err: unknown) {
@@ -134,7 +134,7 @@ export default function NasabahPage() {
       ),
     },
     {
-      key: 'name',
+      key: 'full_name',
       label: 'Nama Nasabah',
       render: (v) => (
         <span className="font-semibold text-slate-800 dark:text-white">{String(v)}</span>
