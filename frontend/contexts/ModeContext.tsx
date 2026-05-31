@@ -71,7 +71,7 @@ export const ModeContext = createContext<ModeCtx>({
 
 export const useMode = () => useContext(ModeContext)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
 
 // Store a cookie so Next.js middleware (Edge Runtime) can read the current mode
 // without an extra backend fetch on every request.

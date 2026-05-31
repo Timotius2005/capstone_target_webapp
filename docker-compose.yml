@@ -81,8 +81,8 @@ services:
       args:
         # BACKEND_URL: server-side (container → container) used by Next.js rewrites.
         BACKEND_URL: "http://backend:8080"
-        # NEXT_PUBLIC_API_URL: browser calls go through the nginx proxy on port 80.
-        NEXT_PUBLIC_API_URL: "http://localhost:80"
+        # NEXT_PUBLIC_API_URL: empty → relative URLs → nginx proxies to correct host.
+        NEXT_PUBLIC_API_URL: ""
     container_name: pt-dana-sejahtera-frontend
     restart: unless-stopped
     environment:
