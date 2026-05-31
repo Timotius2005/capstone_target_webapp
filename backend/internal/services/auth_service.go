@@ -132,9 +132,12 @@ func (s *authService) Login(req LoginRequest) (interface{}, error) {
 
 	if security.IsVulnerableFor(security.CategoryA07) {
 		// TODO: Vulnerability Injection Point — OWASP API2 / A07 (Authentication Failures)
-		// A07 enabled: plain-text string comparison — no bcrypt, vulnerable to timing attacks.
+		// A07 enabled: plain-text string comparison attempted first — no bcrypt, vulnerable
+		// to timing attacks. Falls back to bcrypt so seeded users can still login.
 		// JWT has no expiry (100-year token). Verbose error reveals username existence.
-		if user.PasswordHash != req.Password {
+		plainMatch := user.PasswordHash == req.Password
+		bcryptMatch := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) == nil
+		if !plainMatch && !bcryptMatch {
 			s.log.Warn("[VULNERABLE] Login failed — plain-text compare",
 				zap.String("username", req.Username),
 			)
