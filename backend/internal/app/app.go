@@ -211,15 +211,26 @@ func Run() error {
 
 	// ── API v0 — DEPRECATED: exposed only in vulnerable mode ──────────────────
 	// TODO: Vulnerability Injection Point — OWASP API9 (Improper Inventory Management)
-	if security.IsVulnerable() {
-		v0 := r.Group("/api/v0")
-		log.Warn("[VULNERABLE] Deprecated v0 routes registered — OWASP API9")
-		{
-			v0.GET("/loans", loanH.ListPublic)        // no auth, all loans
-			v0.POST("/loans", loanH.ApplyPublic)      // no auth, no cap — OWASP API6
-			v0.GET("/users", adminH.ListUsersPublic) // no auth, all users + hashes
-			v0.GET("/debug", adminH.Debug)           // stack trace + internals
+	// Routes are always registered so mode switches take effect without restart.
+	// The v0SecurityGate middleware enforces that they return 404 in secure mode.
+	v0SecurityGate := func(c *gin.Context) {
+		if !security.IsVulnerable() {
+			c.JSON(404, gin.H{"error": "not found"})
+			c.Abort()
+			return
 		}
+		log.Warn("[VULNERABLE] Deprecated v0 route accessed — OWASP API9",
+			zap.String("path", c.Request.URL.Path),
+		)
+		c.Next()
+	}
+	v0 := r.Group("/api/v0")
+	v0.Use(v0SecurityGate)
+	{
+		v0.GET("/loans", loanH.ListPublic)    // no auth, all loans
+		v0.POST("/loans", loanH.ApplyPublic)  // no auth, no cap — OWASP API6
+		v0.GET("/users", adminH.ListUsersPublic) // no auth, all users + hashes
+		v0.GET("/debug", adminH.Debug)           // stack trace + internals
 	}
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
