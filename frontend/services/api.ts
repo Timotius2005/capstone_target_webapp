@@ -4,7 +4,12 @@ import { isVulnerable } from '@/utils/securityMode'
 const createApiInstance = (): AxiosInstance => {
   const instance = axios.create({
     baseURL: process.env.NEXT_PUBLIC_API_URL || '',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // Bypass the ngrok free-tier browser interstitial so API/JSON calls
+      // return the real response instead of the warning HTML page.
+      'ngrok-skip-browser-warning': 'true',
+    },
     timeout: 10000,
   })
 

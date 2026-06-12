@@ -127,7 +127,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const fetchMode = async () => {
       try {
-        const headers: Record<string, string> = {}
+        const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' }
         const labKey = process.env.NEXT_PUBLIC_LAB_KEY
         if (labKey) headers['X-LAB-KEY'] = labKey
 
@@ -157,6 +157,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const fetchVulnConfigSilent = useCallback(
     async (headers: Record<string, string> = {}) => {
       try {
+        headers['ngrok-skip-browser-warning'] = 'true'
         const labKey = process.env.NEXT_PUBLIC_LAB_KEY
         if (labKey) headers['X-LAB-KEY'] = labKey
         const res = await fetch(`${API_BASE}/api/system/vuln-config`, { headers })
@@ -174,7 +175,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   // ── switchMode ─────────────────────────────────────────────────────────────
   const switchMode = useCallback(
     async (newMode: Mode) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' }
       const labKey = process.env.NEXT_PUBLIC_LAB_KEY
       if (labKey) headers['X-LAB-KEY'] = labKey
 
@@ -229,7 +230,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     async (config: VulnConfig) => {
       setIsVulnConfigLoading(true)
       try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        const headers: Record<string, string> = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' }
         const labKey = process.env.NEXT_PUBLIC_LAB_KEY
         if (labKey) headers['X-LAB-KEY'] = labKey
 

@@ -2,18 +2,33 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"pt-dana-sejahtera/internal/security"
 )
 
 // AllowedOrigins defines the CORS whitelist for secure mode.
-var AllowedOrigins = []string{
-	"http://localhost:3000",
-	"http://localhost:3001",
-	"https://dana-sejahtera.example.com",
-}
+// Extra origins (e.g. the Vercel frontend) can be added at runtime via the
+// FRONTEND_ORIGIN env var — comma-separated for multiple values — so the
+// hybrid-cloud deployment works without recompiling.
+var AllowedOrigins = func() []string {
+	base := []string{
+		"http://localhost:3000",
+		"http://localhost:3001",
+		"https://dana-sejahtera.example.com",
+	}
+	if extra := os.Getenv("FRONTEND_ORIGIN"); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				base = append(base, o)
+			}
+		}
+	}
+	return base
+}()
 
 // CORS handles cross-origin resource sharing.
 // OWASP #8 Secure: properly configured CORS.
