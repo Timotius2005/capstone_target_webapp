@@ -50,7 +50,7 @@ func CORS() gin.HandlerFunc {
 				c.Header("Vary", "Origin")
 			}
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, ngrok-skip-browser-warning, X-LAB-KEY")
 			c.Header("Access-Control-Max-Age", "86400")
 		}
 
