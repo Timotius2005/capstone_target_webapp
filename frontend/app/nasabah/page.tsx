@@ -224,7 +224,7 @@ export default function NasabahPage() {
           <form onSubmit={handleAddNasabah} noValidate={vulnerable}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
-                { label: 'Nama Lengkap', key: 'name', type: 'text', placeholder: 'Budi Santoso' },
+                { label: 'Nama Lengkap', key: 'full_name', type: 'text', placeholder: 'Budi Santoso' },
                 { label: 'NIK (16 digit)', key: 'nik', type: 'text', placeholder: '3201234567890001' },
                 { label: 'No. Telepon', key: 'phone', type: 'tel', placeholder: '+6281234567890' },
                 { label: 'Tanggal Lahir', key: 'date_of_birth', type: 'date', placeholder: '' },
